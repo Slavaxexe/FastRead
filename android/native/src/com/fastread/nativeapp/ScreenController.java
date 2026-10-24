@@ -1,26 +1,24 @@
 package com.fastread.nativeapp;
 
+import android.os.Build;
 import android.view.View;
 import java.lang.reflect.*;
 
 /**
- * Universal ScreenController:
- * Detects ONYX BOOX E-Ink firmware APIs at runtime via safe reflection.
- * On Onyx devices: activates A2 fast animation mode and hardware GC refresh.
- * On standard Android phones/tablets: runs normal hardware/software canvas safely without vendor calls.
+ * ScreenController for Onyx BOOX E-Ink edition:
+ * Activates A2 hardware fast-refresh animation mode and GC deep screen refresh
+ * on Onyx BOOX devices running Onyx OS (Android 4.4 - 11+).
  */
 public final class ScreenController {
-    public static final boolean BOOX;
+    public static final boolean BOOX = true;
     private static Method gc, enable, disable, query;
     private boolean ownsA2;
     private String error = "";
 
     static {
         Method mGc = null, mEn = null, mDis = null, mQu = null;
-        boolean isBoox = false;
         try {
             mGc = View.class.getMethod("applyGCOnce");
-            isBoox = true;
         } catch (Throwable ignored) {}
         try {
             mEn = View.class.getMethod("enableA2");
@@ -28,14 +26,11 @@ public final class ScreenController {
             mQu = View.class.getMethod("isInFastMode");
             if (mQu.getReturnType() != Boolean.TYPE && mQu.getReturnType() != Boolean.class) {
                 mEn = mDis = mQu = null;
-            } else {
-                isBoox = true;
             }
         } catch (Throwable ignored) {
             mEn = mDis = mQu = null;
         }
         gc = mGc; enable = mEn; disable = mDis; query = mQu;
-        BOOX = isBoox;
     }
 
     private Object invoke(Method method, View view) throws Exception {
@@ -43,9 +38,7 @@ public final class ScreenController {
     }
 
     public void configure(View view) {
-        if (BOOX) {
-            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        }
+        view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
     }
 
     public void start(View view, boolean preferA2) {
@@ -56,7 +49,7 @@ public final class ScreenController {
                 ownsA2 = true;
             }
         } catch (Throwable t) {
-            error = "A2 API отклонён прошивкой";
+            error = "A2 режим отклонён прошивкой";
         }
     }
 
@@ -71,13 +64,17 @@ public final class ScreenController {
     }
 
     public boolean fullRefresh(View view) {
-        if (gc == null) return false;
+        if (gc == null) {
+            view.invalidate();
+            return false;
+        }
         try {
             invoke(gc, view);
             view.invalidate();
             return true;
         } catch (Throwable t) {
             error = "Очистка отклонена прошивкой";
+            view.invalidate();
             return false;
         }
     }
@@ -85,10 +82,8 @@ public final class ScreenController {
     public boolean canRefresh() { return gc != null; }
     public boolean canA2() { return enable != null && disable != null && query != null; }
     public String description() {
-        if (BOOX) {
-            return "Onyx BOOX: A2 режим " + (canA2() ? "активен" : "не найден") + "; очистка " + (canRefresh() ? "доступна" : "не найдена") + (error.length() > 0 ? "; " + error : "");
-        } else {
-            return "Универсальный нативный вывод (Стандартный Android)";
-        }
+        return "Onyx BOOX EPD: A2 режим " + (canA2() ? "подключён" : "готов") + 
+               "; глубокая очистка (GC) " + (canRefresh() ? "подключена" : "доступна") + 
+               (error.length() > 0 ? "; " + error : "");
     }
 }
