@@ -6,6 +6,7 @@ Thumbs.db
 # Build artifacts
 dist/*.apk
 !dist/FastRead.apk
+!dist/FastRead-1.2.apk
 android/build_tmp/
 android/native-build/
 android/native-tests/

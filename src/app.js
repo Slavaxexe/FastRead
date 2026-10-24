@@ -26,7 +26,6 @@ var DEFAULTS = {
   focusStyle: 'box', // Box outline is 100% visible on Onyx BOOX in A2 mode
   split: true,
   ramp: false,       // ramp off by default for e-ink
-  minWordMs: 0,      // optional panel pacing; 0 preserves the verified 1.2 timing
   context: true,
   font: 'serif',
   size: 56,
@@ -350,22 +349,22 @@ function orpOffset(n) {
 }
 
 function splitWord(w) {
-  var str = String(w || '');
+  var chars = String(w || '').split('');
   var a = -1, b = -1;
-  for (var k = 0; k < str.length; k++) {
-    if (IS_WORDCHAR.test(str.charAt(k))) {
+  for (var k = 0; k < chars.length; k++) {
+    if (IS_WORDCHAR.test(chars[k])) {
       if (a < 0) a = k;
       b = k;
     }
   }
   if (a < 0) {
-    var m = Math.floor((str.length - 1) / 2);
-    return [str.slice(0, m), str.charAt(m), str.slice(m + 1)];
+    var m = Math.floor((chars.length - 1) / 2);
+    return [chars.slice(0, m).join(''), chars[m] || '', chars.slice(m + 1).join('')];
   }
   var n = b - a + 1;
   var off = settings.focus === 'orp' ? Math.min(orpOffset(n), n - 1) : Math.floor((n - 1) / 2);
   var p = a + off;
-  return [str.slice(0, p), str.charAt(p), str.slice(p + 1)];
+  return [chars.slice(0, p).join(''), chars[p], chars.slice(p + 1).join('')];
 }
 
 /* =====================================================================
@@ -628,8 +627,9 @@ function updateChapterTicks() {
   ticksEl.innerHTML = '';
   if (!S.doc || !S.tokens.length) return;
 
-  // loadDoc already detects chapters. Do not scan the entire book a second
-  // time here when it legitimately has no chapter headings.
+  if ((!S.doc.chapters || !S.doc.chapters.length) && S.doc.text) {
+    S.doc.chapters = detectChaptersFromText(S.doc.text);
+  }
 
   var total = S.tokens.length;
   if (S.doc.chapters && S.doc.chapters.length) {
@@ -671,13 +671,14 @@ function updateChapterTicks() {
 function getChapterInfoAt(index) {
   if (!S.doc || !S.doc.chapters || !S.doc.chapters.length) return null;
   var chs = S.doc.chapters;
-  var low = 0, high = chs.length;
-  while (low < high) {
-    var mid = Math.floor((low + high) / 2);
-    if (chs[mid].startIndex <= index) low = mid + 1;
-    else high = mid;
+  var chIdx = 0;
+  for (var i = 0; i < chs.length; i++) {
+    if (chs[i].startIndex <= index) {
+      chIdx = i;
+    } else {
+      break;
+    }
   }
-  var chIdx = Math.max(0, low - 1);
   var curCh = chs[chIdx];
   var nextStart = (chIdx + 1 < chs.length) ? chs[chIdx + 1].startIndex : S.tokens.length;
   var wordsLeftInCh = Math.max(0, nextStart - index);
@@ -1098,87 +1099,22 @@ var lastCheckpoint = 0;
 function resetPlaybackStats() {
   var now = playbackNow();
   playbackStats = { startedAt: now, wordAt: now, elapsedMs: 0, completedTokens: 0,
-    maxLateMs: 0, samples: [], sampleNext: 0, sampleCount: 0 };
-  // Recycle a bounded set of records instead of allocating and shifting an
-  // array at every word. Snapshots are copied only when diagnostics is opened.
-  for (var i = 0; i < 120; i++) playbackStats.samples.push({ index: 0, word: '', durationMs: 0 });
+    maxLateMs: 0, samples: [] };
 }
 
 // Software timing only; this does not measure physical E-Ink visibility.
 function getPlaybackDiagnostics() {
   var p = playbackStats;
-  var samples = [];
-  if (p) {
-    var first = p.sampleCount === 120 ? p.sampleNext : 0;
-    for (var i = 0; i < p.sampleCount; i++) {
-      var sample = p.samples[(first + i) % 120];
-      samples.push({ index: sample.index, word: sample.word, durationMs: sample.durationMs });
-    }
-  }
   return {
     requestedWpm: settings.wpm,
     smart: settings.smart,
-    minWordMs: settings.minWordMs || 0,
     clock: 'timeout',
     completedTokens: p ? p.completedTokens : 0,
     elapsedMs: p ? p.elapsedMs : 0,
     observedTokenWpm: p && p.elapsedMs ? Math.round(p.completedTokens * 60000 / p.elapsedMs) : 0,
     maxLateMs: p ? p.maxLateMs : 0,
-    samples: samples
+    samples: p ? p.samples.slice() : []
   };
-}
-
-function nativeReading(active) {
-  try {
-    if (window.AndroidBridge && window.AndroidBridge.setReading) window.AndroidBridge.setReading(active);
-  } catch (e) {}
-}
-
-function showPerformance() {
-  var p = getPlaybackDiagnostics();
-  var lines = [
-    'Текущая настройка: ' + p.requestedWpm + ' сл/мин',
-    p.completedTokens ? 'Последнее чтение: ' + p.observedTokenWpm + ' токенов/мин (' + p.completedTokens + ' завершено)' : 'Для замера сначала запустите чтение.',
-    'Максимальное опоздание таймера: ' + Math.round(p.maxLateMs) + ' мс',
-    'Минимум на слово: ' + (p.minWordMs ? p.minWordMs + ' мс' : 'выключен')
-  ];
-  try {
-    if (window.AndroidBridge && window.AndroidBridge.getRenderStats) {
-      var r = JSON.parse(window.AndroidBridge.getRenderStats());
-      lines.push('Проходы Android: ' + r.drawCount + '; наибольший интервал — ' + r.maxGapMs.toFixed(1) + ' мс');
-      lines.push('Устройство: ' + r.device + ', Android API ' + r.sdk);
-    }
-  } catch (e) {}
-  lines.push('Это программный замер. Видимость каждого слова на E-Ink проверяется по экрану.');
-  $('performanceReport').textContent = lines.join('\n');
-}
-
-function updateScreenCapabilities() {
-  var button = $('screenRefreshBtn');
-  button.disabled = true;
-  try {
-    if (window.AndroidBridge && window.AndroidBridge.getEinkCapabilities) {
-      var caps = JSON.parse(window.AndroidBridge.getEinkCapabilities());
-      button.disabled = !caps.fullRefresh;
-      $('screenRefreshInfo').textContent = caps.fullRefresh
-        ? 'Полная очистка по нажатию. Режим A2 автоматически не меняется.'
-        : 'Прошивка не предоставляет приложению распознанную команду очистки. Используйте системную кнопку обновления.';
-    }
-  } catch (e) {}
-}
-
-function requestScreenRefresh() {
-  if ($('screenRefreshBtn').disabled) return;
-  pause();
-  closeModals();
-  try {
-    window.AndroidBridge.requestFullRefresh();
-  } catch (e) { toast('Не удалось отправить команду очистки экрана'); }
-}
-
-function onScreenRefresh(sent) {
-  // Command delivery is not an acknowledgement of physical waveform completion.
-  if (!sent) toast('Команда очистки недоступна на этой прошивке');
 }
 
 function cancelPlaybackClock() {
@@ -1196,7 +1132,6 @@ function schedule() {
     S.ramp--;
   }
   if (d < 25) d = 25;
-  if (!S.trShown) d = Math.max(d, Math.min(500, Math.max(0, Number(settings.minWordMs) || 0)));
   var due = playbackNow() + d;
   var generation = S.clockGeneration;
   function advance() {
@@ -1225,12 +1160,8 @@ function tick() {
   if (playbackStats) {
     playbackStats.completedTokens++;
     playbackStats.elapsedMs += now - playbackStats.wordAt;
-    var sample = playbackStats.samples[playbackStats.sampleNext];
-    sample.index = S.i;
-    sample.word = t.w;
-    sample.durationMs = now - playbackStats.wordAt;
-    playbackStats.sampleNext = (playbackStats.sampleNext + 1) % 120;
-    playbackStats.sampleCount = Math.min(120, playbackStats.sampleCount + 1);
+    playbackStats.samples.push({ index: S.i, word: t.w, durationMs: now - playbackStats.wordAt });
+    if (playbackStats.samples.length > 120) playbackStats.samples.shift();
     playbackStats.wordAt = now;
   }
   if (S.i >= S.tokens.length - 1) {
@@ -1261,7 +1192,6 @@ function play() {
   clearTimeout(saveT);
   resetPlaybackStats();
   lastCheckpoint = playbackNow();
-  nativeReading(true);
   document.body.classList.add('playing');
   $('context').hidden = true;
   $('playBtn').innerHTML = ICON_PAUSE;
@@ -1272,7 +1202,6 @@ function play() {
 function pause() {
   S.playing = false;
   cancelPlaybackClock();
-  nativeReading(false);
   hideTr();
   document.body.classList.remove('playing');
   $('playBtn').innerHTML = ICON_PLAY;
@@ -1337,13 +1266,8 @@ function setWpm(v) {
 
 /* ---------- Save position ---------- */
 var saveT = null;
-var lastQueuedSaveDoc = null;
-var lastQueuedSaveKey = '';
 function savePosSoon() {
   clearTimeout(saveT);
-  // Playback already checkpoints the small position key every five seconds.
-  // A punctuation pause must not trigger cloning a multi-megabyte book.
-  if (S.playing) return;
   saveT = setTimeout(savePos, 1500);
 }
 function savePos() {
@@ -1355,16 +1279,9 @@ function savePos() {
   LS.set('fr.pos.' + S.doc.id, S.i);
   LS.set('fr.total.' + S.doc.id, S.tokens.length);
   LS.set('fr.updated.' + S.doc.id, S.doc.updated);
-  var doc = S.doc;
-  var key = JSON.stringify([S.i, S.tokens.length, doc.bookmarks || [], doc.exampleId || '']);
-  if (lastQueuedSaveDoc === doc && lastQueuedSaveKey === key) return;
-  lastQueuedSaveDoc = doc;
-  lastQueuedSaveKey = key;
   try {
-    DB.put('docs', doc).catch(function() {
-      if (lastQueuedSaveDoc === doc && lastQueuedSaveKey === key) lastQueuedSaveDoc = null;
-    });
-  } catch(e) { lastQueuedSaveDoc = null; }
+    DB.put('docs', S.doc).catch(function() {});
+  } catch(e) {}
 }
 
 document.addEventListener('visibilitychange', function() {
@@ -1916,7 +1833,6 @@ function openModal(id) {
   $(id).classList.add('open');
   if (id === 'libModal') renderLib();
   if (id === 'deckModal') renderDeck();
-  if (id === 'setModal') { showPerformance(); updateScreenCapabilities(); }
   if (id === 'newModal') setTimeout(function() { $('textIn').focus(); }, 50);
 }
 
@@ -2373,9 +2289,7 @@ async function renderLib() {
     docs = (await DB.all('docs')) || [];
   } catch (e) {}
   if (!Array.isArray(docs)) docs = [];
-  docs.sort(function(a, b) {
-    return LS.get('fr.updated.' + b.id, b.updated || 0) - LS.get('fr.updated.' + a.id, a.updated || 0);
-  });
+  docs.sort(function(a, b) { return (b.updated || 0) - (a.updated || 0); });
   if (!docs.length) {
     list.innerHTML = '<div class="empty">Пока пусто. Добавьте книгу через «Добавить книгу».</div>';
     return;
@@ -2475,7 +2389,6 @@ function applyLook() {
   var vals = {
     sWpm: settings.wpm,
     sSize: settings.size,
-    sMinWord: settings.minWordMs || 0,
     sOp: settings.glossOp,
     sDelay: settings.glossDelay,
     sDens: settings.density,
@@ -2488,7 +2401,6 @@ function applyLook() {
   }
 
   $('sWpmV').textContent = settings.wpm;
-  $('sMinWordV').textContent = settings.minWordMs ? settings.minWordMs + ' мс' : 'выкл.';
   $('sOpV').textContent = settings.glossOp + '%';
   $('sDelayV').textContent = settings.glossDelay + ' мс';
   $('sDensV').textContent = settings.density + ' / 5';
@@ -2533,7 +2445,6 @@ function bindRange(id, key, after) {
   });
 }
 bindRange('sSize', 'size');
-bindRange('sMinWord', 'minWordMs');
 bindRange('sOp', 'glossOp');
 bindRange('sDelay', 'glossDelay', function() { buildCum(); render(); });
 bindRange('sDens', 'density', retokenize);
@@ -2568,8 +2479,6 @@ bindSeg('sFont', 'font');
 bindSeg('sTheme', 'theme');
 bindSeg('sHwKeys', 'hwKeys');
 bindSeg('sLevel', 'level', function() { buildCum(); render(); }, true);
-$('performanceBtn').onclick = showPerformance;
-$('screenRefreshBtn').onclick = requestScreenRefresh;
 
 /* =====================================================================
    Examples Embedding Placeholder
@@ -2644,6 +2553,5 @@ window.FastRead = {
   showTr: showTr,
   hideTr: hideTr,
   applyLook: applyLook,
-  getPlaybackDiagnostics: getPlaybackDiagnostics,
-  onScreenRefresh: onScreenRefresh
+  getPlaybackDiagnostics: getPlaybackDiagnostics
 };

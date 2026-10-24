@@ -10,10 +10,10 @@
   "scripts": {
     "start": "node tools/serve.js",
     "build": "node tools/build.js",
-    "build:apk": "node tools/build_native_apk.js",
+    "build:apk": "node tools/build_apk.js",
     "build:web-apk": "node tools/build_apk.js",
-    "test": "node tools/test_native.js",
-    "test:web": "node tools/build.js && node tools/test_app.js && node tools/test_playback.js && node tools/test_optimization.js",
+    "test": "node tools/build.js && node tools/test_app.js && node tools/test_playback.js",
+    "test:web": "node tools/build.js && node tools/test_app.js && node tools/test_playback.js",
     "benchmark": "node tools/benchmark_optimization.js"
   },
   "repository": {
