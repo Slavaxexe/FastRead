@@ -1,0 +1,38 @@
+{
+  "name": "fastreader",
+  "version": "1.0.0",
+  "description": "<p align=\"center\">\r   <picture>\r     <source media=\"(prefers-color-scheme: dark)\" srcset=\"docs/banner-dark.png\">\r     <source media=\"(prefers-color-scheme: light)\" srcset=\"docs/banner-light.png\">\r     <img alt=\"FastRead\" src=\"docs/banner-dark.png\" width=\"760\">\r   </picture>\r </p>",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "start": "node tools/serve.js",
+    "build": "node tools/build.js",
+    "build:apk": "node tools/build_native_apk.js",
+    "build:web-apk": "node tools/build_apk.js",
+    "test": "node tools/test_native.js",
+    "test:web": "node tools/build.js && node tools/test_app.js && node tools/test_playback.js && node tools/test_optimization.js",
+    "benchmark": "node tools/benchmark_optimization.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Slavaxexe/FastRead.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Slavaxexe/FastRead/issues"
+  },
+  "homepage": "https://github.com/Slavaxexe/FastRead#readme",
+  "devDependencies": {
+    "@babel/core": "^8.0.9",
+    "@babel/preset-env": "^8.0.7",
+    "jsdom": "^30.1.3",
+    "jszip": "^3.10.2"
+  },
+  "dependencies": {
+    "promise-polyfill": "^8.3.0"
+  }
+}

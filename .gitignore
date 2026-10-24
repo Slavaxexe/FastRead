@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/*.apk
+!dist/FastRead.apk
+android/build_tmp/
+android/native-build/
+android/native-tests/
+android/app/build/
+android/debug.keystore
+
+# Local SDKs & runtimes
+tools/android-sdk/
+tools/jdk/
+
+# Video inspection and local test dumps
+tools/overview_timeline/
+tools/video_frames/
+tools/video_frames_playback/
+tools/words_sample/
+tools/words_timeline/
+tools/sec_20_30/
+tools/sec_25_35/
+tools/sec_50_60/
+tools/seq_0_32/
+tools/inspections/
+tools/playback_audit/
+tools/timeline_142/
+logs/

@@ -1,0 +1,1385 @@
+/* FastRead E-Ink Optimized Stylesheet (Chromium 30 / Android 4.4.4 Compatible) */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: none !important;
+  -webkit-transition: none !important;
+  animation: none !important;
+  -webkit-animation: none !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  color: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+/* Inverted / Dark Theme (if user toggles to dark) */
+body.theme-dark {
+  background: #000000;
+  color: #ffffff;
+}
+body.theme-dark header,
+body.theme-dark footer,
+body.theme-dark .modal {
+  background: #000000;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+body.theme-dark button,
+body.theme-dark select,
+body.theme-dark input,
+body.theme-dark textarea {
+  color: #ffffff;
+}
+body.theme-dark .hbtn,
+body.theme-dark .cbtn,
+body.theme-dark .ghost,
+body.theme-dark .chip {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+body.theme-dark .primary {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+body.theme-dark .guide {
+  background: #ffffff;
+}
+body.theme-dark .guide::after {
+  background: #ffffff;
+}
+body.theme-dark #wp {
+  border-bottom-color: #ffffff;
+}
+
+button {
+  font: inherit;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #000000;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:active {
+  background: #000000;
+  color: #ffffff;
+}
+
+input, textarea, select {
+  font: inherit;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 4px;
+}
+
+/* ---------- Header ---------- */
+header {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 2px solid #000000;
+  background: #ffffff;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 16px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.logo i {
+  width: 8px;
+  height: 8px;
+  background: #000000;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.doc-title {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 22vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0 6px;
+  display: none;
+}
+
+.header-actions {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+
+.hbtn {
+  padding: 6px 9px;
+  margin-left: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #000000;
+  background: #ffffff;
+  white-space: nowrap;
+  min-height: 38px;
+}
+
+.badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  margin-left: 4px;
+  background: #000000;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 2px;
+}
+.badge:empty {
+  display: none;
+}
+
+/* Top Book & Chapter Indicator Banner */
+.book-banner {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 5px 12px;
+  background: #ffffff;
+  border-bottom: 2px solid #000000;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #000000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.book-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+.book-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45vw;
+}
+.book-sep {
+  margin: 0 8px;
+  font-weight: 900;
+}
+.chapter-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.theme-dark .book-banner {
+  background: #000000;
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+/* ---------- Stage / Reader Area ---------- */
+main {
+  -webkit-flex: 1;
+  flex: 1;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  padding: 10px 16px;
+  position: relative;
+  min-height: 240px;
+}
+
+#stage {
+  width: 100%;
+  max-width: 900px;
+  position: relative;
+  padding: 34px 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  text-align: center;
+  background: #ffffff !important;
+}
+
+body.theme-dark #stage {
+  background: #000000 !important;
+}
+
+/* Focus guides with tick mark */
+.guide {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  height: 2px;
+  background: #000000;
+}
+
+.guide::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  height: 14px;
+  background: #000000;
+}
+
+.guide.top {
+  top: 0;
+}
+.guide.top::after {
+  top: 0;
+}
+
+.guide.bottom {
+  bottom: 0;
+}
+.guide.bottom::after {
+  bottom: 0;
+}
+
+/* Word RSVP presentation: Flexbox layout with solid background (no GPU layer dirty-rect bug) */
+#word {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: baseline;
+  align-items: baseline;
+  width: 100%;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 56px;
+  line-height: 1.2;
+  white-space: pre;
+  min-height: 1.2em;
+  background: #ffffff !important;
+}
+
+body.theme-dark #word {
+  background: #000000 !important;
+}
+
+#wl {
+  -webkit-flex: 1;
+  flex: 1;
+  text-align: right;
+  overflow: hidden;
+  background: inherit;
+  white-space: pre;
+}
+
+#wp {
+  -webkit-flex: 0 0 auto;
+  flex: 0 0 auto;
+  text-align: center;
+  font-weight: 700;
+  border-bottom: 3px solid #000000;
+  padding-bottom: 2px;
+  background: inherit;
+  white-space: pre;
+}
+
+/* Inversion: White letter on black block */
+body.focus-invert #wp {
+  background: #000000 !important;
+  color: #ffffff !important;
+  padding: 0 4px !important;
+  border-bottom: none !important;
+  border-radius: 2px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+body.theme-dark.focus-invert #wp {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Box Outline (Default & recommended for Onyx BOOX E-Ink) */
+body.focus-box #wp {
+  border: 3px solid #000000 !important;
+  padding: 0 5px !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  border-radius: 4px;
+  line-height: 1.1;
+  font-weight: 900;
+}
+body.theme-dark.focus-box #wp {
+  border-color: #ffffff !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Markers: Arrows above and below */
+body.focus-markers #wp {
+  position: relative;
+  font-weight: 900;
+  border-bottom: none !important;
+  background: transparent !important;
+  color: #000000 !important;
+}
+body.focus-markers #wp::before {
+  content: "▼";
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  -webkit-transform: translateX(-50%);
+  font-size: 15px;
+  color: #000000 !important;
+  line-height: 1;
+}
+body.focus-markers #wp::after {
+  content: "▲";
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  -webkit-transform: translateX(-50%);
+  font-size: 15px;
+  color: #000000 !important;
+  line-height: 1;
+}
+body.theme-dark.focus-markers #wp {
+  color: #ffffff !important;
+}
+body.theme-dark.focus-markers #wp::before,
+body.theme-dark.focus-markers #wp::after {
+  color: #ffffff !important;
+}
+
+/* Thick Underline */
+body.focus-underline #wp {
+  border-bottom: 5px solid #000000 !important;
+  padding-bottom: 2px !important;
+  font-weight: 900;
+  background: transparent !important;
+  color: #000000 !important;
+}
+body.theme-dark.focus-underline #wp {
+  border-bottom-color: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* Bold only */
+body.focus-bold #wp {
+  font-weight: 900 !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  color: #000000 !important;
+}
+body.theme-dark.focus-bold #wp {
+  color: #ffffff !important;
+}
+
+#wr {
+  -webkit-flex: 1;
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  background: inherit;
+  white-space: pre;
+}
+
+#word.swapped #wl,
+#word.swapped #wr {
+  text-decoration: underline;
+}
+
+#gloss {
+  display: none;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  min-height: 1.4em;
+  margin-top: 8px;
+  white-space: nowrap;
+  color: #333333;
+}
+
+body.has-pack #gloss {
+  display: block;
+}
+
+#gloss.show {
+  visibility: visible;
+}
+#gloss:not(.show) {
+  visibility: hidden;
+}
+
+#trline {
+  position: absolute;
+  top: 15px;
+  bottom: 15px;
+  left: 5%;
+  right: 5%;
+  display: none;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.35;
+  background: #ffffff;
+}
+
+#stage.tr-on #trline {
+  display: -webkit-flex;
+  display: flex;
+}
+#stage.tr-on #word,
+#stage.tr-on #gloss {
+  visibility: hidden;
+}
+
+/* Tap Zones Overlay */
+.tap-zones {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: -webkit-flex;
+  display: flex;
+  pointer-events: none;
+}
+.tap-zone {
+  height: 100%;
+}
+.tap-left {
+  width: 25%;
+}
+.tap-center {
+  width: 50%;
+}
+.tap-right {
+  width: 25%;
+}
+
+#hint {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #333333;
+  padding: 4px 8px;
+  border-top: 1px dashed #888888;
+  width: 100%;
+  max-width: 760px;
+}
+
+/* Context panel on pause (Book reader view - enlarged for reading) */
+#context {
+  width: 100%;
+  max-width: 860px;
+  margin-top: 8px;
+  max-height: 54vh;
+  overflow-y: auto;
+  font-family: Georgia, "PT Serif", "Times New Roman", serif;
+  font-size: 21px;
+  line-height: 1.55;
+  color: #000000 !important;
+  padding: 12px 16px;
+  border: 2px solid #000000 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  border-radius: 2px;
+}
+
+#context[hidden] {
+  display: none !important;
+}
+
+#context .ctx-p {
+  margin: 0.45em 0;
+  text-indent: 1.4em;
+  text-align: justify;
+}
+
+/* Epigraph and Author typography */
+#context .ctx-epigraph {
+  margin: 1.2em 0 0.3em auto;
+  width: 82%;
+  padding: 8px 14px;
+  border-left: 3px solid #000000;
+  font-style: italic;
+  font-size: 20px;
+  line-height: 1.5;
+  text-indent: 0;
+  text-align: left;
+}
+
+#context .ctx-epigraph::before {
+  content: "“";
+  font-size: 26px;
+  line-height: 0;
+  vertical-align: -4px;
+  margin-right: 4px;
+  font-family: Georgia, serif;
+  font-weight: 700;
+}
+
+#context .ctx-author {
+  margin: 0.2em 0 1.2em auto;
+  width: 82%;
+  text-align: right;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 17px;
+  text-indent: 0;
+  padding-right: 4px;
+}
+
+#context .ctx-author::before {
+  content: "— ";
+}
+
+body.theme-dark #context .ctx-epigraph {
+  border-left-color: #ffffff;
+}
+
+#context span[data-i] {
+  cursor: pointer;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+#context span[data-i]:active {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+#context span.cur {
+  font-weight: 900 !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  border: 2px solid #000000 !important;
+  padding: 1px 5px !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+}
+
+#context span.sw {
+  text-decoration: underline;
+}
+
+#context .ctr {
+  display: block;
+  font-family: sans-serif;
+  font-size: 14px;
+  margin: 4px 0 8px;
+  padding-left: 8px;
+  border-left: 3px solid #000000;
+  color: #000000;
+}
+
+body.theme-dark #context {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body.theme-dark #context span.cur {
+  color: #ffffff !important;
+  background: #000000 !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* ---------- Footer Controls ---------- */
+footer {
+  padding: 10px 14px 14px;
+  border-top: 2px solid #000000;
+  background: #ffffff;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.progress {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.progress span {
+  padding: 0 8px;
+}
+
+.scrub-wrap {
+  position: relative;
+  -webkit-flex: 1;
+  flex: 1;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  margin: 0 6px;
+  height: 28px;
+}
+
+.chapter-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 20px;
+  margin-top: -10px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ch-tick {
+  position: absolute;
+  top: 0;
+  width: 5px;
+  height: 20px;
+  background: #000000;
+  border: 1.5px solid #ffffff;
+  transform: translateX(-50%);
+  -webkit-transform: translateX(-50%);
+  z-index: 6;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+body.theme-dark .ch-tick {
+  background: #ffffff;
+  border-color: #000000;
+}
+
+.ch-tick.bm-tick {
+  width: 7px;
+  height: 14px;
+  margin-top: 3px;
+  background: #000000;
+  border: 1.5px solid #ffffff;
+  border-radius: 2px;
+}
+
+body.theme-dark .ch-tick.bm-tick {
+  background: #ffffff;
+  border-color: #000000;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 28px;
+  cursor: pointer;
+  margin: 0;
+  position: relative;
+  z-index: 3;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #000000;
+  border-radius: 0;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 24px;
+  background: #ffffff;
+  border: 2px solid #000000;
+  margin-top: -9px;
+  border-radius: 2px;
+}
+
+.controls.single-row {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: row;
+  flex-direction: row;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.speed-ctl {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+
+.speed-ctl .val {
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 60px;
+}
+
+.speed-ctl .val small {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.transport {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: flex-end;
+  justify-content: flex-end;
+  margin-bottom: 0;
+}
+
+.icon-btn.bookmarked {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.theme-dark .icon-btn.bookmarked {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.cbtn {
+  height: 46px;
+  min-width: 44px;
+  padding: 0 9px;
+  margin: 0 3px;
+  border: 1.5px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 15px;
+  font-weight: 700;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-shadow: none !important;
+}
+
+.cbtn:active {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: none !important;
+}
+
+.cbtn svg {
+  width: 22px;
+  height: 22px;
+}
+
+#playBtn {
+  height: 50px;
+  min-width: 70px;
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  margin: 0 6px;
+  box-shadow: none !important;
+}
+
+#playBtn:active {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: none !important;
+}
+
+#playBtn svg {
+  width: 28px;
+  height: 28px;
+}
+
+body.theme-dark .cbtn {
+  border-color: #ffffff;
+  color: #ffffff;
+  background: #000000;
+  box-shadow: none !important;
+}
+
+body.theme-dark #playBtn {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  box-shadow: none !important;
+}
+
+.speed {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  margin-left: 6px;
+}
+
+.speed .val {
+  min-width: 76px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.speed .val small {
+  font-size: 11px;
+  font-weight: 400;
+  display: block;
+}
+
+.stats {
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+select.mode {
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #000000;
+  background: #ffffff;
+  max-width: 170px;
+}
+
+.pack-only {
+  display: none !important;
+}
+body.has-pack .pack-only {
+  display: inline-block !important;
+}
+
+/* Modals */
+.overlay {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 100;
+}
+
+.overlay.open {
+  display: -webkit-flex;
+  display: flex;
+}
+
+.modal {
+  background: #ffffff;
+  border: 2px solid #000000;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mhead {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 2px solid #000000;
+}
+
+.mhead h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.x {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #000000;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mbody {
+  padding: 14px 16px;
+  overflow-y: auto;
+}
+
+.mbody h3 {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000000;
+  padding-bottom: 2px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 10px;
+  line-height: 1.5;
+  border: 1px solid #000000;
+  border-radius: 0;
+}
+
+.field input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #000000;
+  margin-bottom: 10px;
+  border-radius: 0;
+}
+
+.drop {
+  border: 2px dashed #000000;
+  padding: 18px;
+  text-align: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.drop:active, .drop.over {
+  background: #000000;
+  color: #ffffff;
+}
+
+.examples {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chip {
+  padding: 6px 10px;
+  border: 1px solid #000000;
+  background: #ffffff;
+  font-size: 13px;
+  margin: 3px;
+}
+
+.chip:active {
+  background: #000000;
+  color: #ffffff;
+}
+
+.row {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: flex-end;
+  justify-content: flex-end;
+  -webkit-align-items: center;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.row .msg {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.primary {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #000000;
+  padding: 10px 18px;
+  font-weight: 700;
+  min-height: 44px;
+}
+
+.primary:active {
+  background: #ffffff;
+  color: #000000;
+}
+
+.primary:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ghost {
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  padding: 10px 14px;
+  font-weight: 600;
+  margin-right: 8px;
+  min-height: 44px;
+}
+
+.ghost:active {
+  background: #000000;
+  color: #ffffff;
+}
+
+/* Settings Form (Flexbox replacement for Grid) */
+.set {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid #cccccc;
+}
+
+.set label {
+  font-weight: 600;
+  font-size: 14px;
+  -webkit-flex: 1;
+  flex: 1;
+}
+
+.set p {
+  width: 100%;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #444444;
+}
+
+.set .rv {
+  font-size: 13px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.seg {
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  border: 1px solid #000000;
+}
+
+.seg button {
+  padding: 6px 12px;
+  border: none;
+  border-right: 1px solid #000000;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.seg button:last-child {
+  border-right: none;
+}
+
+.seg button.on {
+  background: #000000;
+  color: #ffffff;
+}
+
+.switch {
+  width: 50px;
+  height: 30px;
+  border: 2px solid #000000;
+  background: #ffffff;
+  position: relative;
+  padding: 0;
+  border-radius: 0;
+}
+
+.switch::after {
+  content: "ВЫКЛ";
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 26px;
+  text-align: center;
+  display: block;
+}
+
+.switch.on {
+  background: #000000;
+  color: #ffffff;
+}
+
+.switch.on::after {
+  content: "ВКЛ";
+}
+
+.set input[type=range] {
+  width: 140px;
+}
+
+.modes {
+  margin-top: 6px;
+}
+
+.mopt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid #000000;
+  margin-bottom: 6px;
+  border-radius: 0;
+}
+
+.mopt b {
+  display: block;
+  font-size: 14px;
+}
+
+.mopt span {
+  display: block;
+  font-size: 12px;
+  color: #444444;
+}
+
+.mopt.on {
+  background: #000000;
+  color: #ffffff;
+}
+.mopt.on span {
+  color: #dddddd;
+}
+
+/* Library List */
+.lib-item {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #000000;
+  cursor: pointer;
+}
+
+.lib-item.active {
+  background: #eeeeee;
+  border-left: 4px solid #000000;
+}
+
+.lib-item .t {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+.lib-item .t div:first-child {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-item .t div:nth-child(2) {
+  font-size: 12px;
+  color: #444444;
+  margin-top: 2px;
+}
+
+.bar {
+  height: 4px;
+  background: #dddddd;
+  border: 1px solid #000000;
+  margin-top: 4px;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: #000000;
+}
+
+.del {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: #444444;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  left: 50%;
+  top: 30px;
+  transform: translateX(-50%);
+  -webkit-transform: translateX(-50%);
+  background: #ffffff !important;
+  color: #000000 !important;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  border: 3px solid #000000 !important;
+  border-radius: 4px;
+  display: none;
+  z-index: 999999;
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: none !important;
+  word-break: break-word;
+}
+
+#toast.show {
+  display: block;
+}
+
+/* Deck */
+.deck-top {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.deck-top .msg {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.card-row {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #cccccc;
+}
+
+.card-row .f {
+  -webkit-flex: 1;
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+}
+.card-row .c {
+  font-size: 12px;
+  color: #444444;
+}
+
+.review {
+  text-align: center;
+  padding: 16px 0;
+}
+.review .front {
+  font-family: Georgia, serif;
+  font-size: 36px;
+  font-weight: 700;
+}
+.review .ctx {
+  font-family: Georgia, serif;
+  font-size: 18px;
+  margin: 12px auto 0;
+  max-width: 500px;
+}
+.review .back {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 18px;
+}
+.review .btns {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Responsive adjustments for 6" e-reader portrait display */
+@media (max-width: 700px) {
+  header {
+    padding: 6px 8px;
+  }
+  .doc-title, .stats, .cbtn.wide {
+    display: none;
+  }
+  .hbtn {
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+  .speed .val {
+    min-width: 60px;
+    font-size: 13px;
+  }
+}
