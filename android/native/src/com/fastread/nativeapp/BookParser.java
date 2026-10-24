@@ -54,6 +54,11 @@ public final class BookParser {
     private static String clean(String text) { return text.replace('\u00a0', ' ').replace("\u00ad", "").replaceAll("[ \\t]+", " ").replaceAll(" *\\n *", "\n").replaceAll("\\n{3,}", "\n\n").trim(); }
     private static String fallbackHtml(String text) {
         return clean(text.replaceAll("(?is)<(script|style|head)\\b[^>]*>.*?</\\1>", "")
+            .replaceAll("(?i)<(?:div|section|blockquote)[^>]*class=[\"'][^\"']*epigraph[^\"']*[\"'][^>]*>", "\n\n[[EPIGRAPH]]\n\n")
+            .replaceAll("(?i)<epigraph\\b[^>]*>", "\n\n[[EPIGRAPH]]\n\n")
+            .replaceAll("(?i)</(?:div|section|blockquote|epigraph)>", "\n\n[[/EPIGRAPH]]\n\n")
+            .replaceAll("(?i)<(?:p|div|span|text-author)[^>]*class=[\"'][^\"']*(?:text-author|author)[^\"']*[\"'][^>]*>", "\n\n[[AUTHOR]]\n\n")
+            .replaceAll("(?i)<text-author\\b[^>]*>", "\n\n[[AUTHOR]]\n\n")
             .replaceAll("(?i)</?(p|div|h[1-6]|br|li|section|blockquote)\\b[^>]*>", "\n\n")
             .replaceAll("<[^>]*>", "").replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'"));
     }
@@ -70,12 +75,18 @@ public final class BookParser {
             if (skipDepth > 0) return;
             if (tag.equals("binary") || tag.equals("script") || tag.equals("style") || tag.equals("head") || (fb2 && tag.equals("body") && "notes".equals(attrs.getValue("name")))) { skipDepth = depth; return; }
             if (tag.equals("body")) bodyDepth = depth;
-            if (tag.matches("p|v|div|h[1-6]|br|li|section|subtitle|text-author|blockquote")) paragraph();
+            if (tag.equals("epigraph")) { paragraph(); text.append("[[EPIGRAPH]]\n\n"); }
+            else if (tag.equals("text-author")) { paragraph(); text.append("[[AUTHOR]]\n\n"); }
+            else if (tag.matches("p|v|div|h[1-6]|br|li|section|subtitle|blockquote")) paragraph();
         }
         public void endElement(String uri, String local, String name) {
             String tag = (local.length() > 0 ? local : name).toLowerCase(Locale.ROOT);
             if (skipDepth == depth) skipDepth = 0;
-            else if (skipDepth == 0 && tag.matches("p|v|div|h[1-6]|li|section|subtitle|text-author|blockquote")) paragraph();
+            else if (skipDepth == 0) {
+                if (tag.equals("epigraph")) { paragraph(); text.append("[[/EPIGRAPH]]\n\n"); }
+                else if (tag.equals("text-author")) { paragraph(); text.append("[[/AUTHOR]]\n\n"); }
+                else if (tag.matches("p|v|div|h[1-6]|li|section|subtitle|blockquote")) paragraph();
+            }
             if (bodyDepth == depth) bodyDepth = 0;
             if (titleDepth == depth) titleDepth = 0;
             depth--;

@@ -114,7 +114,7 @@ public final class WordView extends View {
             normal.setTextSize(size);
             focusPaint.setTextSize(size);
 
-            float padding = (style.equals("box") ? 6f : style.equals("invert") ? 5f : 0f) * density;
+            float padding = (style.equals("box") ? 3.5f : style.equals("invert") ? 3f : 0f) * density;
             float fw = focusPaint.measureText(word, focus, focus + 1);
             float leftWidth = normal.measureText(word, 0, focus);
             float rightWidth = normal.measureText(word, focus + 1, word.length());
@@ -141,30 +141,37 @@ public final class WordView extends View {
             canvas.drawText(word, 0, focus, left - leftWidth, baseline, normal);
             canvas.drawText(word, focus + 1, word.length(), right, baseline, normal);
 
-            float boxTop = baseline + metrics.ascent - 3f * density;
-            float boxBottom = baseline + metrics.descent + 3f * density;
+            Rect charBounds = new Rect();
+            focusPaint.getTextBounds(word, focus, focus + 1, charBounds);
+            float capHeight = Math.abs(metrics.ascent) * 0.74f;
+            float topOffset = Math.min(-capHeight, (float) charBounds.top);
+            float bottomOffset = Math.max(metrics.descent * 0.18f, (float) charBounds.bottom);
+
+            float padY = 3f * density;
+            float boxTop = baseline + topOffset - padY;
+            float boxBottom = baseline + bottomOffset + padY;
 
             if (style.equals("invert")) {
                 decor.setColor(foreground);
                 decor.setStyle(Paint.Style.FILL);
                 RectF invRect = new RectF(left, boxTop, right, boxBottom);
-                canvas.drawRoundRect(invRect, 3f * density, 3f * density, decor);
+                canvas.drawRoundRect(invRect, 2.5f * density, 2.5f * density, decor);
                 focusPaint.setColor(background);
             } else if (style.equals("box")) {
                 decor.setStyle(Paint.Style.STROKE);
-                decor.setStrokeWidth(2.5f * density);
+                decor.setStrokeWidth(2f * density);
                 RectF boxRect = new RectF(left, boxTop, right, boxBottom);
-                canvas.drawRoundRect(boxRect, 3.5f * density, 3.5f * density, decor);
+                canvas.drawRoundRect(boxRect, 2.5f * density, 2.5f * density, decor);
                 decor.setStyle(Paint.Style.FILL);
             } else if (style.equals("underline")) {
-                decor.setStrokeWidth(3.5f * density);
+                decor.setStrokeWidth(3f * density);
                 canvas.drawLine(left, boxBottom, right, boxBottom, decor);
             } else if (style.equals("markers")) {
                 decor.setStrokeWidth(2f * density);
-                canvas.drawLine(center - 5 * density, boxTop - 9 * density, center, boxTop - 3 * density, decor);
-                canvas.drawLine(center + 5 * density, boxTop - 9 * density, center, boxTop - 3 * density, decor);
-                canvas.drawLine(center - 5 * density, boxBottom + 9 * density, center, boxBottom + 3 * density, decor);
-                canvas.drawLine(center + 5 * density, boxBottom + 9 * density, center, boxBottom + 3 * density, decor);
+                canvas.drawLine(center - 5 * density, boxTop - 8 * density, center, boxTop - 2 * density, decor);
+                canvas.drawLine(center + 5 * density, boxTop - 8 * density, center, boxTop - 2 * density, decor);
+                canvas.drawLine(center - 5 * density, boxBottom + 8 * density, center, boxBottom + 2 * density, decor);
+                canvas.drawLine(center + 5 * density, boxBottom + 8 * density, center, boxBottom + 2 * density, decor);
             }
 
             canvas.drawText(word, focus, focus + 1, center - fw / 2f, baseline, focusPaint);

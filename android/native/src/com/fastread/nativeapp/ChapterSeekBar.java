@@ -9,11 +9,14 @@ import java.util.List;
 
 /**
  * Custom E-Ink styled SeekBar:
- * Sleek black track, rectangular thumb with crisp border, and chapter ticks.
+ * Sleek 3.5dp track, rectangular thumb with crisp border,
+ * and high-contrast chapter ticks with white outlines.
  */
 public final class ChapterSeekBar extends SeekBar {
-    private final Paint tickPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bmPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickOutline = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bmFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bmOutline = new Paint(Paint.ANTI_ALIAS_FLAG);
     private BookData bookData;
     private List<Integer> bookmarks;
     private final float density;
@@ -22,11 +25,19 @@ public final class ChapterSeekBar extends SeekBar {
         super(context);
         density = getResources().getDisplayMetrics().density;
 
-        tickPaint.setColor(Color.BLACK);
-        tickPaint.setStrokeWidth(3f * density);
+        tickFill.setColor(Color.BLACK);
+        tickFill.setStyle(Paint.Style.FILL);
 
-        bmPaint.setColor(Color.BLACK);
-        bmPaint.setStrokeWidth(5f * density);
+        tickOutline.setColor(Color.WHITE);
+        tickOutline.setStyle(Paint.Style.STROKE);
+        tickOutline.setStrokeWidth(dp(1.5f));
+
+        bmFill.setColor(Color.BLACK);
+        bmFill.setStyle(Paint.Style.FILL);
+
+        bmOutline.setColor(Color.WHITE);
+        bmOutline.setStyle(Paint.Style.STROKE);
+        bmOutline.setStrokeWidth(dp(1.5f));
 
         applyFlatStyling();
     }
@@ -36,14 +47,14 @@ public final class ChapterSeekBar extends SeekBar {
     }
 
     private void applyFlatStyling() {
-        // Flat track
+        // Sleek flat track: 3.5dp high
         GradientDrawable trackBg = new GradientDrawable();
-        trackBg.setColor(Color.BLACK);
-        trackBg.setSize(-1, dp(5));
+        trackBg.setColor(Color.parseColor("#c8c8c8"));
+        trackBg.setSize(-1, dp(3.5f));
 
         GradientDrawable trackProgress = new GradientDrawable();
         trackProgress.setColor(Color.BLACK);
-        trackProgress.setSize(-1, dp(5));
+        trackProgress.setSize(-1, dp(3.5f));
         ClipDrawable clipProgress = new ClipDrawable(trackProgress, Gravity.LEFT, ClipDrawable.HORIZONTAL);
 
         LayerDrawable layers = new LayerDrawable(new Drawable[]{trackBg, clipProgress});
@@ -51,12 +62,12 @@ public final class ChapterSeekBar extends SeekBar {
         layers.setId(1, android.R.id.progress);
         setProgressDrawable(layers);
 
-        // Flat rectangular thumb (18x24dp with 2dp border)
+        // Crisp flat rectangular thumb (18x22dp with 2dp border)
         GradientDrawable thumb = new GradientDrawable();
         thumb.setColor(Color.WHITE);
         thumb.setStroke(dp(2), Color.BLACK);
-        thumb.setCornerRadius(dp(2.5f));
-        thumb.setSize(dp(18), dp(24));
+        thumb.setCornerRadius(dp(2f));
+        thumb.setSize(dp(18), dp(22));
         setThumb(thumb);
         setThumbOffset(dp(9));
     }
@@ -75,23 +86,35 @@ public final class ChapterSeekBar extends SeekBar {
             int total = bookData.words.length;
             int avail = getWidth() - getPaddingLeft() - getPaddingRight();
             int cy = getHeight() / 2;
-            int tickH = dp(9);
+            int tickH = dp(16);
+            float tickHalfW = dp(1.8f);
 
-            // Draw chapter ticks
+            // Draw chapter ticks with high-contrast white outline + black notch
             for (BookData.Chapter ch : bookData.chapters) {
                 if (ch.start > 0 && ch.start < total) {
                     float x = getPaddingLeft() + ((float) ch.start / total) * avail;
-                    canvas.drawLine(x, cy - tickH, x, cy + tickH, tickPaint);
+                    RectF outRect = new RectF(x - tickHalfW - dp(1.2f), cy - tickH / 2f - dp(1.2f),
+                                              x + tickHalfW + dp(1.2f), cy + tickH / 2f + dp(1.2f));
+                    RectF inRect = new RectF(x - tickHalfW, cy - tickH / 2f,
+                                             x + tickHalfW, cy + tickH / 2f);
+                    canvas.drawRect(outRect, tickOutline);
+                    canvas.drawRect(inRect, tickFill);
                 }
             }
 
-            // Draw bookmark ticks
+            // Draw bookmark ticks with high-contrast notch
             if (bookmarks != null) {
-                int bmH = dp(7);
+                int bmH = dp(12);
+                float bmHalfW = dp(3.2f);
                 for (int bPos : bookmarks) {
                     if (bPos > 0 && bPos < total) {
                         float x = getPaddingLeft() + ((float) bPos / total) * avail;
-                        canvas.drawLine(x, cy - bmH, x, cy + bmH, bmPaint);
+                        RectF outBm = new RectF(x - bmHalfW - dp(1.2f), cy - bmH / 2f - dp(1.2f),
+                                               x + bmHalfW + dp(1.2f), cy + bmH / 2f + dp(1.2f));
+                        RectF inBm = new RectF(x - bmHalfW, cy - bmH / 2f,
+                                              x + bmHalfW, cy + bmH / 2f);
+                        canvas.drawRoundRect(outBm, dp(2), dp(2), bmOutline);
+                        canvas.drawRoundRect(inBm, dp(1.5f), dp(1.5f), bmFill);
                     }
                 }
             }

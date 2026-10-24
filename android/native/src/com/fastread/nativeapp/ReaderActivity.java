@@ -37,7 +37,8 @@ public final class ReaderActivity extends Activity {
     private float density;
     private WordView wordView;
     private TextView bannerView, positionView, remainingView, speedView, contextView;
-    private Button playButton, markButton;
+    private Button playButton;
+    private BookmarkButton markButton;
     private ChapterSeekBar progress;
     private ScrollView contextScroll;
     private FrameLayout contextCard;
@@ -122,12 +123,72 @@ public final class ReaderActivity extends Activity {
         return Math.round(value * density);
     }
 
+        public static final class BookmarkButton extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private boolean bookmarked;
+        private final float density;
+
+        public BookmarkButton(Context context, float density) {
+            super(context);
+            this.density = density;
+            setClickable(true);
+            setFocusable(true);
+        }
+
+        public void setBookmarked(boolean bm) {
+            if (this.bookmarked != bm) {
+                this.bookmarked = bm;
+                invalidate();
+            }
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth(), h = getHeight();
+            int bg = bookmarked ? Color.BLACK : Color.WHITE;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(bg);
+            canvas.drawRect(0, 0, w, h, paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.round(1f * density));
+            paint.setColor(Color.BLACK);
+            canvas.drawRect(0, 0, w, h, paint);
+
+            float s = Math.min(w, h) * 0.48f;
+            float scale = s / 24f;
+            float ox = w / 2f - 12f * scale;
+            float oy = h / 2f - 12f * scale;
+
+            path.reset();
+            path.moveTo(ox + 6f * scale, oy + 4f * scale);
+            path.lineTo(ox + 18f * scale, oy + 4f * scale);
+            path.lineTo(ox + 18f * scale, oy + 20f * scale);
+            path.lineTo(ox + 12f * scale, oy + 16f * scale);
+            path.lineTo(ox + 6f * scale, oy + 20f * scale);
+            path.close();
+
+            if (bookmarked) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(Color.WHITE);
+                canvas.drawPath(path, paint);
+            } else {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.round(1.8f * density));
+                paint.setColor(Color.BLACK);
+                canvas.drawPath(path, paint);
+            }
+        }
+    }
+
     private StateListDrawable makeButtonDrawable(boolean isPrimary) {
         int normalBg = isPrimary ? Color.BLACK : Color.WHITE;
         int pressedBg = isPrimary ? Color.WHITE : Color.BLACK;
         int strokeColor = Color.BLACK;
-        int strokeWidth = dp(1.5f);
-        int radius = dp(3.5f);
+        int strokeWidth = isPrimary ? dp(2f) : dp(1f);
+        int radius = dp(2f);
 
         GradientDrawable normal = new GradientDrawable();
         normal.setColor(normalBg);
@@ -154,31 +215,40 @@ public final class ReaderActivity extends Activity {
         );
     }
 
-    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, View.OnClickListener onClick) {
+    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, float textSizeSp, View.OnClickListener onClick) {
         Button btn = new Button(this);
         btn.setText(text);
-        btn.setTextSize(14f);
+        btn.setTextSize(textSizeSp);
         btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         btn.setTextColor(makeButtonTextColor(isPrimary));
         btn.setBackgroundDrawable(makeButtonDrawable(isPrimary));
         btn.setMinWidth(dp(minWidthDp));
         btn.setMinimumWidth(dp(minWidthDp));
-        btn.setPadding(dp(4), 0, dp(4), 0);
+        btn.setPadding(0, 0, 0, 0);
+        btn.setSingleLine(true);
+        btn.setEllipsize(null);
+        btn.setIncludeFontPadding(false);
         btn.setGravity(Gravity.CENTER);
         btn.setOnClickListener(onClick);
         return btn;
     }
 
+    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, View.OnClickListener onClick) {
+        return makeFlatButton(text, minWidthDp, heightDp, isPrimary, 14f, onClick);
+    }
+
     private Button makeHeaderButton(String text, View.OnClickListener onClick) {
         Button btn = new Button(this);
         btn.setText(text);
-        btn.setTextSize(12.5f);
+        btn.setTextSize(13f);
         btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         btn.setTextColor(makeButtonTextColor(false));
         btn.setBackgroundDrawable(makeButtonDrawable(false));
-        btn.setMinWidth(dp(64));
-        btn.setMinimumWidth(dp(64));
+        btn.setMinWidth(dp(62));
+        btn.setMinimumWidth(dp(62));
         btn.setPadding(dp(8), 0, dp(8), 0);
+        btn.setSingleLine(true);
+        btn.setIncludeFontPadding(false);
         btn.setGravity(Gravity.CENTER);
         btn.setOnClickListener(onClick);
         return btn;
@@ -276,22 +346,16 @@ public final class ReaderActivity extends Activity {
 
         // 4. Paused Context Card (visible on pause)
         contextCard = new FrameLayout(this);
-        GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(2), Color.BLACK);
-        cardBg.setCornerRadius(dp(3));
-        contextCard.setBackgroundDrawable(cardBg);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, dp(175));
-        cardParams.setMargins(dp(10), dp(4), dp(10), dp(4));
-        contextCard.setLayoutParams(cardParams);
+        contextCard.setBackgroundColor(Color.WHITE);
+        contextCard.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
 
         contextScroll = new ScrollView(this);
         contextView = new TextView(this);
-        contextView.setTextSize(18f);
+        contextView.setTextSize(19.5f);
         contextView.setTypeface(Typeface.SERIF);
         contextView.setTextColor(Color.BLACK);
-        contextView.setLineSpacing(dp(4), 1.25f);
-        contextView.setPadding(dp(12), dp(8), dp(12), dp(8));
+        contextView.setLineSpacing(dp(3), 1.3f);
+        contextView.setPadding(dp(16), dp(8), dp(16), dp(8));
         contextView.setMovementMethod(LinkMovementMethod.getInstance());
         contextScroll.addView(contextView);
         contextCard.addView(contextScroll);
@@ -343,63 +407,63 @@ public final class ReaderActivity extends Activity {
         controls.setGravity(Gravity.CENTER_VERTICAL);
         controls.setPadding(dp(6), dp(4), dp(6), dp(8));
 
-        markButton = makeFlatButton("☆", 38, 46, false, new View.OnClickListener() {
+        markButton = new BookmarkButton(this, density);
+        markButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { toggleBookmark(); }
         });
         markButton.setOnLongClickListener(new View.OnLongClickListener() {
             public boolean onLongClick(View v) { showBookmarks(); return true; }
         });
 
-        Button slower = makeFlatButton("−", 36, 46, false, new View.OnClickListener() {
+        Button slower = makeFlatButton("−", 34, 46, false, 22f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(-25); }
         });
 
         speedView = new TextView(this);
         speedView.setText("300\nсл/м");
-        speedView.setTextSize(12.5f);
+        speedView.setTextSize(13f);
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(Color.BLACK);
-        speedView.setPadding(dp(2), 0, dp(2), 0);
+        speedView.setPadding(dp(1), 0, dp(1), 0);
 
-        Button faster = makeFlatButton("+", 36, 46, false, new View.OnClickListener() {
+        Button faster = makeFlatButton("+", 34, 46, false, 22f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(25); }
         });
 
         View spacer = new View(this);
 
-        Button back10 = makeFlatButton("−10", 40, 46, false, new View.OnClickListener() {
+        Button back10 = makeFlatButton("−10", 38, 46, false, 14.5f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 10); }
         });
-        Button back1 = makeFlatButton("‹", 32, 46, false, new View.OnClickListener() {
+        Button back1 = makeFlatButton("‹", 30, 46, false, 22f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 1); }
         });
-        playButton = makeFlatButton("▶", 58, 50, true, new View.OnClickListener() {
+        playButton = makeFlatButton("▶", 54, 48, true, 22f, new View.OnClickListener() {
             public void onClick(View v) { toggle(); }
         });
-        Button fwd1 = makeFlatButton("›", 32, 46, false, new View.OnClickListener() {
+        Button fwd1 = makeFlatButton("›", 30, 46, false, 22f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 1); }
         });
-        Button fwd10 = makeFlatButton("+10", 40, 46, false, new View.OnClickListener() {
+        Button fwd10 = makeFlatButton("+10", 38, 46, false, 14.5f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 10); }
         });
 
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
-        btnParams.setMargins(dp(1.5f), 0, dp(1.5f), 0);
+        btnParams.setMargins(dp(1), 0, dp(1), 0);
 
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(50), 1.5f);
-        playParams.setMargins(dp(3), 0, dp(3), 0);
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(48), 1.45f);
+        playParams.setMargins(dp(2), 0, dp(2), 0);
 
-        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(54), dp(46));
-        speedParams.setMargins(dp(1.5f), 0, dp(1.5f), 0);
+        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(50), dp(46));
+        speedParams.setMargins(dp(1), 0, dp(1), 0);
 
-        controls.addView(markButton, btnParams);
+        controls.addView(markButton, new LinearLayout.LayoutParams(0, dp(46), 1f));
         controls.addView(slower, btnParams);
         controls.addView(speedView, speedParams);
         controls.addView(faster, btnParams);
 
-        // Thin spacer between speed and transport
-        controls.addView(spacer, new LinearLayout.LayoutParams(dp(4), -1));
+        controls.addView(spacer, new LinearLayout.LayoutParams(dp(3), -1));
 
         controls.addView(back10, btnParams);
         controls.addView(back1, btnParams);
@@ -483,10 +547,8 @@ public final class ReaderActivity extends Activity {
 
         playButton.setText(clock.playing() ? "❚❚" : "▶");
 
-        boolean isMarked = record.bookmarks.contains(index);
-        markButton.setText(isMarked ? "★" : "☆");
-        markButton.setTextColor(makeButtonTextColor(isMarked));
-        markButton.setBackgroundDrawable(makeButtonDrawable(isMarked));
+        boolean isMarked = record != null && record.bookmarks != null && record.bookmarks.contains(index);
+        markButton.setBookmarked(isMarked);
 
         speedView.setText(wpm + "\nсл/м");
     }
@@ -521,20 +583,33 @@ public final class ReaderActivity extends Activity {
     private void showContext() {
         if (book == null || clock.playing() || !preferences.getBoolean("context", true)) {
             contextCard.setVisibility(View.GONE);
+            wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             return;
         }
+        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(145)));
+        contextCard.setVisibility(View.VISIBLE);
+
         final int current = clock.index();
         SpannableStringBuilder builder = new SpannableStringBuilder();
-        int startIdx = Math.max(0, current - 35);
-        int endIdx = Math.min(book.words.length, current + 55);
+        int startIdx = Math.max(0, current - 40);
+        int endIdx = Math.min(book.words.length, current + 60);
 
         boolean isParagraphStart = true;
         for (int i = startIdx; i < endIdx; i++) {
             final int position = i;
+            byte type = (book.types != null && i < book.types.length) ? book.types[i] : BookData.TYPE_NORMAL;
+
             if (isParagraphStart) {
-                builder.append("   "); // paragraph indent
+                if (type == BookData.TYPE_EPIGRAPH) {
+                    builder.append("   “ ");
+                } else if (type == BookData.TYPE_AUTHOR) {
+                    builder.append("         — ");
+                } else {
+                    builder.append("   ");
+                }
                 isParagraphStart = false;
             }
+
             int s = builder.length();
             builder.append(book.words[i]);
             int e = builder.length();
@@ -551,19 +626,27 @@ public final class ReaderActivity extends Activity {
                 }
             }, s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 
+            if (type == BookData.TYPE_EPIGRAPH) {
+                builder.setSpan(new StyleSpan(Typeface.ITALIC), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (type == BookData.TYPE_AUTHOR) {
+                builder.setSpan(new StyleSpan(Typeface.BOLD), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+
             if (i == current) {
                 builder.setSpan(new BoxWordSpan(density), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
 
             if (book.paragraphEnds[i]) {
-                builder.append("\n\n");
+                if (type == BookData.TYPE_EPIGRAPH) {
+                    builder.append(" ”");
+                }
+                builder.append("\n");
                 isParagraphStart = true;
             } else {
                 builder.append(" ");
             }
         }
         contextView.setText(builder);
-        contextCard.setVisibility(View.VISIBLE);
     }
 
     private void toggle() {
@@ -572,6 +655,7 @@ public final class ReaderActivity extends Activity {
             clock.pause();
         } else {
             contextCard.setVisibility(View.GONE);
+            wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             screen.start(wordView, preferences.getBoolean("autoA2", true));
             wordView.setKeepScreenOn(true);
             clock.play();
