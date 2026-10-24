@@ -37,6 +37,7 @@ public final class ReaderActivity extends Activity {
     private float density;
     private WordView wordView;
     private TextView bannerView, positionView, remainingView, speedView, contextView;
+    private Runnable contextJustifyRunnable;
     private VectorButton playButton;
     private BookmarkButton markButton;
     private ChapterSeekBar progress;
@@ -552,10 +553,24 @@ public final class ReaderActivity extends Activity {
         root.addView(progressRow);
 
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onStartTrackingTouch(SeekBar bar) { if (clock != null) clock.pause(); }
-            public void onStopTrackingTouch(SeekBar bar) { if (clock != null) seek(bar.getProgress()); }
+            private boolean isTracking = false;
+            public void onStartTrackingTouch(SeekBar bar) {
+                isTracking = true;
+                if (clock != null) clock.pause();
+            }
+            public void onStopTrackingTouch(SeekBar bar) {
+                isTracking = false;
+                if (clock != null) seek(bar.getProgress());
+            }
             public void onProgressChanged(SeekBar bar, int value, boolean user) {
-                if (user && !updatingProgress && clock != null) seek(value);
+                if (user && !updatingProgress && clock != null) {
+                    if (isTracking) {
+                        clock.seek(value);
+                        refreshUi();
+                    } else {
+                        seek(value);
+                    }
+                }
             }
         });
 
@@ -722,7 +737,8 @@ public final class ReaderActivity extends Activity {
         int index = clock.index();
         int chapter = book.chapterAt(index);
 
-        bannerView.setText("📖 " + record.title + (chapter >= 0 ? "  •  " + book.chapters[chapter].title : ""));
+        String chTitle = (book.chapters != null && chapter >= 0 && chapter < book.chapters.length) ? book.chapters[chapter].title : "";
+        bannerView.setText("📖 " + (record != null ? record.title : "") + (chTitle.length() > 0 ? "  •  " + chTitle : ""));
         positionView.setText((book.words.length > 0 ? index + 1 : 0) + " / " + book.words.length);
 
         int wordsLeft = Math.max(0, book.words.length - index);
@@ -800,7 +816,7 @@ public final class ReaderActivity extends Activity {
             p.setColor(Color.BLACK);
             int left = x + dir * indent;
             int right = left + dir * stripeWidth;
-            c.drawRect(Math.min(left, right), top + 2, Math.max(left, right), bottom - 2, p);
+            c.drawRect(Math.min(left, right), top, Math.max(left, right), bottom, p);
             p.setStyle(oldStyle);
             p.setColor(oldColor);
         }
@@ -835,9 +851,6 @@ public final class ReaderActivity extends Activity {
                 if (type == BookData.TYPE_EPIGRAPH) {
                     if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
                         builder.append("\n");
-                    }
-                    if (!book.words[i].matches("^[«“\"'].*")) {
-                        builder.append("“ ");
                     }
                 } else if (type == BookData.TYPE_AUTHOR) {
                     if (!book.words[i].matches("^[—–-].*")) {
@@ -885,7 +898,8 @@ public final class ReaderActivity extends Activity {
                 } else if (currentParagraphType == BookData.TYPE_EPIGRAPH) {
                     builder.setSpan(new EpigraphSpan(dp(26), dp(2.8f), dp(10)), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    builder.append("\n");
+                    boolean nextIsAuthor = (i + 1 < endIdx && book.types != null && i + 1 < book.types.length && book.types[i + 1] == BookData.TYPE_AUTHOR);
+                    builder.append(nextIsAuthor ? "\n" : "\n\n");
                 } else if (currentParagraphType == BookData.TYPE_AUTHOR) {
                     builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -900,72 +914,84 @@ public final class ReaderActivity extends Activity {
         }
         contextView.setText(builder);
 
+        if (contextJustifyRunnable != null) {
+            contextView.removeCallbacks(contextJustifyRunnable);
+        }
         final int targetOffset = currentWordStartInSpan;
-        contextView.post(new Runnable() {
+        contextJustifyRunnable = new Runnable() {
             @Override
             public void run() {
-                Layout layout = contextView.getLayout();
-                if (layout != null) {
-                    int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
-                    if (availableWidth > 0) {
-                        CharSequence text = builder;
-                        int lineCount = layout.getLineCount();
-                        boolean modified = false;
+                try {
+                    Layout layout = contextView.getLayout();
+                    if (layout != null && layout.getText() != null) {
+                        if (!layout.getText().toString().equals(builder.toString())) {
+                            return;
+                        }
+                        int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
+                        if (availableWidth > 0) {
+                            CharSequence text = builder;
+                            int textLen = text.length();
+                            int lineCount = layout.getLineCount();
+                            boolean modified = false;
 
-                        for (int l = 0; l < lineCount; l++) {
-                            int lineStart = layout.getLineStart(l);
-                            int lineEnd = layout.getLineEnd(l);
-                            if (lineEnd <= lineStart) continue;
+                            for (int l = 0; l < lineCount; l++) {
+                                int lineStart = layout.getLineStart(l);
+                                int lineEnd = layout.getLineEnd(l);
+                                if (lineEnd <= lineStart || lineEnd > textLen) continue;
 
-                            char lastChar = text.charAt(lineEnd - 1);
-                            if (lastChar == '\n' || lastChar == '\r') continue;
-                            if (lineEnd < text.length() && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
+                                char lastChar = text.charAt(lineEnd - 1);
+                                if (lastChar == '\n' || lastChar == '\r') continue;
+                                if (lineEnd < textLen && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
 
-                            Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
-                            if (alignSpans != null && alignSpans.length > 0) continue;
-                            Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
-                            if (epigraphSpans != null && epigraphSpans.length > 0) continue;
+                                Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
+                                if (alignSpans != null && alignSpans.length > 0) continue;
+                                Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
+                                if (epigraphSpans != null && epigraphSpans.length > 0) continue;
 
-                            float lineWidth = layout.getLineWidth(l);
-                            float emptySpace = availableWidth - lineWidth;
+                                float lineWidth = layout.getLineWidth(l);
+                                float emptySpace = availableWidth - lineWidth;
 
-                            if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
-                                int spaceCount = 0;
-                                for (int ci = lineStart; ci < lineEnd; ci++) {
-                                    if (text.charAt(ci) == ' ') spaceCount++;
-                                }
-                                if (spaceCount >= 1) {
-                                    float spaceWidth = contextView.getPaint().measureText(" ");
-                                    float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
-                                    float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
-                                    if (scaleX > 1.05f && scaleX <= 2.8f) {
-                                        for (int ci = lineStart; ci < lineEnd; ci++) {
-                                            if (text.charAt(ci) == ' ') {
-                                                builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                                                modified = true;
+                                if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
+                                    int spaceCount = 0;
+                                    for (int ci = lineStart; ci < lineEnd && ci < textLen; ci++) {
+                                        if (text.charAt(ci) == ' ') spaceCount++;
+                                    }
+                                    if (spaceCount >= 1) {
+                                        float spaceWidth = contextView.getPaint().measureText(" ");
+                                        float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
+                                        float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
+                                        if (scaleX > 1.05f && scaleX <= 2.8f) {
+                                            for (int ci = lineStart; ci < lineEnd && ci < textLen; ci++) {
+                                                if (text.charAt(ci) == ' ') {
+                                                    builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                                    modified = true;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+                            if (modified) {
+                                contextView.setText(builder);
+                            }
                         }
-                        if (modified) {
-                            contextView.setText(builder);
-                        }
-                    }
-                }
 
-                if (targetOffset >= 0 && targetOffset < contextView.getText().length()) {
-                    Layout lyt = contextView.getLayout();
-                    if (lyt != null) {
-                        int line = lyt.getLineForOffset(targetOffset);
-                        int lineTop = lyt.getLineTop(line);
-                        int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
-                        contextScroll.smoothScrollTo(0, targetY);
+                        if (targetOffset >= 0) {
+                            Layout lyt = contextView.getLayout();
+                            if (lyt != null && targetOffset < lyt.getText().length()) {
+                                int line = lyt.getLineForOffset(targetOffset);
+                                int lineTop = lyt.getLineTop(line);
+                                int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
+                                contextScroll.smoothScrollTo(0, targetY);
+                            }
+                        }
                     }
+                } catch (Throwable ignored) {
+                    // Safety guard against layout race conditions during rapid dragging
                 }
             }
-        });
+        };
+        contextView.post(contextJustifyRunnable);
     }
 
     private void toggle() {

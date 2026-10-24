@@ -96,10 +96,13 @@ public final class ChapterSeekBar extends SeekBar {
             }
 
             // 4. Bookmark ticks
-            if (bookmarks != null) {
+            if (bookmarks != null && !bookmarks.isEmpty()) {
                 float bmH = dp(9f);
                 float bmW = dp(3f);
-                for (int bPos : bookmarks) {
+                for (int i = 0; i < bookmarks.size(); i++) {
+                    Integer bObj = bookmarks.get(i);
+                    if (bObj == null) continue;
+                    int bPos = bObj;
                     if (bPos > 0 && bPos < total) {
                         float x = padL + ((float) bPos / total) * avail;
                         boolean overActive = x <= thumbX;

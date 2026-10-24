@@ -85,7 +85,7 @@ public final class BookParser {
             String epubLower = epubType != null ? epubType.toLowerCase(Locale.ROOT) : "";
 
             boolean isEpigraph = tag.equals("epigraph") || clsLower.contains("epigraph") || epubLower.contains("epigraph");
-            boolean isAuthor = tag.equals("text-author") || clsLower.contains("text-author") || clsLower.contains("author") || clsLower.contains("sign");
+            boolean isAuthor = tag.equals("text-author") || clsLower.contains("text-author") || clsLower.contains("epigraph-author") || (epigraphDepth > 0 && (tag.equals("cite") || clsLower.contains("author") || clsLower.contains("sign")));
             boolean isChapter = (fb2 && tag.equals("title") && bodyDepth > 0) || tag.matches("h[1-4]") ||
                 (!fb2 && (clsLower.contains("title") || clsLower.contains("chapter") || epubLower.contains("title")));
 

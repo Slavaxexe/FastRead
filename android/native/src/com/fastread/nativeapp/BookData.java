@@ -157,31 +157,6 @@ public final class BookData {
             }
         }
 
-        // 3. Epigraph + Author detection in plain text / books without explicit markup:
-        // Matches a short quote (3-70 words) immediately followed by an author signature (1-6 words)
-        for (int pi = 0; pi < paragraphs.size() - 1; pi++) {
-            int[] curP = paragraphs.get(pi);
-            if (types[curP[0]] != TYPE_NORMAL) continue;
-            int pLen = curP[1] - curP[0] + 1;
-            if (pLen < 3 || pLen > 70) continue;
-
-            int[] nextP = paragraphs.get(pi + 1);
-            if (types[nextP[0]] != TYPE_NORMAL && types[nextP[0]] != TYPE_AUTHOR) continue;
-            int nextLen = nextP[1] - nextP[0] + 1;
-            if (nextLen < 1 || nextLen > 6) continue;
-
-            StringBuilder authorBuf = new StringBuilder();
-            for (int k = nextP[0]; k <= nextP[1]; k++) authorBuf.append(k == nextP[0] ? "" : " ").append(words[k]);
-            String authorLine = authorBuf.toString().trim();
-
-            if (authorLine.matches("^(?:[—–-]\\s*)?[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$") &&
-                !authorLine.endsWith(",") && !authorLine.endsWith(":") && !authorLine.endsWith("?")) {
-                for (int k = curP[0]; k <= curP[1]; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
-                for (int k = nextP[0]; k <= nextP[1]; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
-                pi++;
-            }
-        }
-
         float[] weights = new float[words.length];
         for (int i = 0; i < words.length; i++) {
             String w = words[i]; int letters = 0; boolean number = false;
@@ -220,8 +195,9 @@ public final class BookData {
     }
 
     public int chapterAt(int index) {
+        if (chapters == null || chapters.length == 0) return 0;
         int lo = 0, hi = chapters.length;
         while (lo < hi) { int mid = (lo + hi) >>> 1; if (chapters[mid].start <= index) lo = mid + 1; else hi = mid; }
-        return lo - 1;
+        return Math.max(0, lo - 1);
     }
 }
