@@ -76,8 +76,12 @@ public final class WordView extends View {
     }
 
     private void updateRegion() {
-        int margin = Math.round(16 * density);
-        wordRegion.set(0, margin, getWidth(), Math.max(margin, getHeight() - margin));
+        float size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
+        float halfStage = Math.max(46f * density, size * 0.95f);
+        float cy = getHeight() / 2f;
+        int topY = Math.max(0, Math.round(cy - halfStage - 6 * density));
+        int botY = Math.min(getHeight(), Math.round(cy + halfStage + 6 * density));
+        wordRegion.set(0, topY, getWidth(), Math.max(topY + 1, botY));
     }
 
     @Override
@@ -98,19 +102,28 @@ public final class WordView extends View {
 
         // 2. Guide lines with ticks
         decor.setColor(foreground);
-        decor.setStrokeWidth(2f * density);
+        decor.setStrokeWidth(Math.round(1.5f * density));
         float center = getWidth() / 2f;
-        float top = 16 * density;
-        float bottom = getHeight() - 16 * density;
+        float size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
+        float halfStage = Math.max(46f * density, size * 0.95f);
+        float cy = getHeight() / 2f;
+        float top = cy - halfStage;
+        float bottom = cy + halfStage;
 
-        canvas.drawLine(14 * density, top, getWidth() - 14 * density, top, decor);
-        canvas.drawLine(14 * density, bottom, getWidth() - 14 * density, bottom, decor);
-        canvas.drawLine(center, top, center, top + 10 * density, decor);
-        canvas.drawLine(center, bottom - 10 * density, center, bottom, decor);
+        float leftGuide = getWidth() * 0.08f;
+        float rightGuide = getWidth() * 0.92f;
+        float tickLen = Math.max(8f * density, size * 0.22f);
+
+        canvas.drawLine(leftGuide, top, rightGuide, top, decor);
+        canvas.drawLine(leftGuide, bottom, rightGuide, bottom, decor);
+
+        decor.setStrokeWidth(Math.round(2f * density));
+        canvas.drawLine(center, top, center, top + tickLen, decor);
+        canvas.drawLine(center, bottom - tickLen, center, bottom, decor);
 
         // 3. Word typography & focus point
         if (word.length() > 0) {
-            float size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
+            size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
             normal.setTextSize(size);
             focusPaint.setTextSize(size);
 

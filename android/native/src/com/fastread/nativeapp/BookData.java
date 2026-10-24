@@ -107,10 +107,12 @@ public final class BookData {
 
         // Post-pass: detect plain-text epigraph + author patterns
         int pStart = 0;
+        int paragraphIndex = 0;
         for (int i = 0; i < words.length; i++) {
             if (ends[i]) {
                 int pLen = i - pStart + 1;
-                if (pLen >= 3 && pLen <= 55 && i + 1 < words.length) {
+                // Never treat the first 2 paragraphs (author / book title / subtitle) as an epigraph
+                if (paragraphIndex >= 2 && pLen >= 3 && pLen <= 65 && i + 1 < words.length) {
                     int nextEnd = i + 1;
                     while (nextEnd < words.length - 1 && !ends[nextEnd]) nextEnd++;
                     if (nextEnd < words.length) {
@@ -119,13 +121,16 @@ public final class BookData {
                             StringBuilder authorBuf = new StringBuilder();
                             for (int k = i + 1; k <= nextEnd && k < words.length; k++) authorBuf.append(k == i + 1 ? "" : " ").append(words[k]);
                             String authorLine = authorBuf.toString().trim();
-                            if (authorLine.matches("^(?:[—–-]\\s*)?[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$")) {
+                            boolean authorHasDash = authorLine.matches("^[—–-]\\s*[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$");
+                            boolean quoteHasQuotes = words[pStart].matches("^[«“\"'].*");
+                            if (authorHasDash || (quoteHasQuotes && authorLine.matches("^[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$"))) {
                                 for (int k = pStart; k <= i && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
                                 for (int k = i + 1; k <= nextEnd && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
                             }
                         }
                     }
                 }
+                paragraphIndex++;
                 pStart = i + 1;
             }
         }

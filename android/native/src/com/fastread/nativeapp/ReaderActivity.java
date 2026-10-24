@@ -134,6 +134,19 @@ public final class ReaderActivity extends Activity {
             this.density = density;
             setClickable(true);
             setFocusable(true);
+
+            GradientDrawable normal = new GradientDrawable();
+            normal.setColor(Color.TRANSPARENT);
+            normal.setCornerRadius(8f * density);
+
+            GradientDrawable pressed = new GradientDrawable();
+            pressed.setColor(Color.parseColor("#e0e0e0"));
+            pressed.setCornerRadius(8f * density);
+
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+            states.addState(new int[]{}, normal);
+            setBackgroundDrawable(states);
         }
 
         public void setBookmarked(boolean bm) {
@@ -148,81 +161,82 @@ public final class ReaderActivity extends Activity {
             super.onDraw(canvas);
             int w = getWidth(), h = getHeight();
             if (w <= 0 || h <= 0) return;
-            int bg = bookmarked ? Color.BLACK : Color.WHITE;
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(bg);
-            canvas.drawRect(0, 0, w, h, paint);
 
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.round(1f * density));
-            paint.setColor(Color.BLACK);
-            canvas.drawRect(0, 0, w, h, paint);
-
-            float s = Math.min(w, h) * 0.48f;
-            float scale = s / 24f;
-            float ox = w / 2f - 12f * scale;
-            float oy = h / 2f - 12f * scale;
+            // Ribbon SVG viewBox 0 0 24 24: "M6 4h12v17l-6-4-6 4z" from webview
+            float iconSize = 22f * density;
+            float scale = iconSize / 24f;
+            float ox = (w - iconSize) / 2f;
+            float oy = (h - iconSize) / 2f;
 
             path.reset();
             path.moveTo(ox + 6f * scale, oy + 4f * scale);
             path.lineTo(ox + 18f * scale, oy + 4f * scale);
-            path.lineTo(ox + 18f * scale, oy + 20f * scale);
-            path.lineTo(ox + 12f * scale, oy + 16f * scale);
-            path.lineTo(ox + 6f * scale, oy + 20f * scale);
+            path.lineTo(ox + 18f * scale, oy + 21f * scale);
+            path.lineTo(ox + 12f * scale, oy + 17f * scale);
+            path.lineTo(ox + 6f * scale, oy + 21f * scale);
             path.close();
 
             if (bookmarked) {
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.WHITE);
+                paint.setColor(Color.BLACK);
                 canvas.drawPath(path, paint);
             } else {
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Math.round(1.8f * density));
+                paint.setStrokeWidth(2f * density);
                 paint.setColor(Color.BLACK);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                paint.setStrokeCap(Paint.Cap.ROUND);
                 canvas.drawPath(path, paint);
             }
         }
     }
 
-    private StateListDrawable makeButtonDrawable(boolean isPrimary) {
-        int normalBg = isPrimary ? Color.BLACK : Color.WHITE;
-        int pressedBg = isPrimary ? Color.WHITE : Color.BLACK;
-        int strokeColor = Color.BLACK;
-        int strokeWidth = isPrimary ? dp(2f) : dp(1f);
-        int radius = dp(2f);
+    private StateListDrawable makeFlatButtonDrawable(boolean isRoundPrimary) {
+        if (isRoundPrimary) {
+            GradientDrawable normal = new GradientDrawable();
+            normal.setShape(GradientDrawable.OVAL);
+            normal.setColor(Color.BLACK);
 
-        GradientDrawable normal = new GradientDrawable();
-        normal.setColor(normalBg);
-        normal.setStroke(strokeWidth, strokeColor);
-        normal.setCornerRadius(radius);
+            GradientDrawable pressed = new GradientDrawable();
+            pressed.setShape(GradientDrawable.OVAL);
+            pressed.setColor(Color.parseColor("#444444"));
 
-        GradientDrawable pressed = new GradientDrawable();
-        pressed.setColor(pressedBg);
-        pressed.setStroke(strokeWidth, strokeColor);
-        pressed.setCornerRadius(radius);
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+            states.addState(new int[]{}, normal);
+            return states;
+        } else {
+            GradientDrawable normal = new GradientDrawable();
+            normal.setColor(Color.TRANSPARENT);
+            normal.setCornerRadius(dp(8f));
 
-        StateListDrawable states = new StateListDrawable();
-        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
-        states.addState(new int[]{}, normal);
-        return states;
+            GradientDrawable pressed = new GradientDrawable();
+            pressed.setColor(Color.parseColor("#e0e0e0"));
+            pressed.setCornerRadius(dp(8f));
+
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+            states.addState(new int[]{}, normal);
+            return states;
+        }
     }
 
-    private ColorStateList makeButtonTextColor(boolean isPrimary) {
-        int normal = isPrimary ? Color.WHITE : Color.BLACK;
-        int pressed = isPrimary ? Color.BLACK : Color.WHITE;
+    private ColorStateList makeButtonTextColor(boolean isRoundPrimary) {
+        int normal = isRoundPrimary ? Color.WHITE : Color.BLACK;
+        int pressed = isRoundPrimary ? Color.WHITE : Color.BLACK;
         return new ColorStateList(
             new int[][]{new int[]{android.R.attr.state_pressed}, new int[]{}},
             new int[]{pressed, normal}
         );
     }
 
-    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, float textSizeSp, View.OnClickListener onClick) {
+    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isRoundPrimary, float textSizeSp, View.OnClickListener onClick) {
         Button btn = new Button(this);
         btn.setText(text);
         btn.setTextSize(textSizeSp);
         btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        btn.setTextColor(makeButtonTextColor(isPrimary));
-        btn.setBackgroundDrawable(makeButtonDrawable(isPrimary));
+        btn.setTextColor(makeButtonTextColor(isRoundPrimary));
+        btn.setBackgroundDrawable(makeFlatButtonDrawable(isRoundPrimary));
         btn.setMinWidth(dp(minWidthDp));
         btn.setMinimumWidth(dp(minWidthDp));
         btn.setPadding(0, 0, 0, 0);
@@ -234,20 +248,20 @@ public final class ReaderActivity extends Activity {
         return btn;
     }
 
-    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, View.OnClickListener onClick) {
-        return makeFlatButton(text, minWidthDp, heightDp, isPrimary, 14f, onClick);
+    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isRoundPrimary, View.OnClickListener onClick) {
+        return makeFlatButton(text, minWidthDp, heightDp, isRoundPrimary, 14f, onClick);
     }
 
     private Button makeHeaderButton(String text, View.OnClickListener onClick) {
         Button btn = new Button(this);
         btn.setText(text);
-        btn.setTextSize(13f);
+        btn.setTextSize(13.5f);
         btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        btn.setTextColor(makeButtonTextColor(false));
-        btn.setBackgroundDrawable(makeButtonDrawable(false));
-        btn.setMinWidth(dp(62));
-        btn.setMinimumWidth(dp(62));
-        btn.setPadding(dp(8), 0, dp(8), 0);
+        btn.setTextColor(Color.BLACK);
+        btn.setBackgroundDrawable(makeFlatButtonDrawable(false));
+        btn.setMinWidth(dp(54));
+        btn.setMinimumWidth(dp(54));
+        btn.setPadding(dp(8), dp(4), dp(8), dp(4));
         btn.setSingleLine(true);
         btn.setIncludeFontPadding(false);
         btn.setGravity(Gravity.CENTER);
@@ -306,10 +320,10 @@ public final class ReaderActivity extends Activity {
 
         root.addView(header);
 
-        // Header divider (2dp solid black)
+        // Header divider (1dp light gray)
         View headerDivider = new View(this);
-        headerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(headerDivider, new LinearLayout.LayoutParams(-1, dp(2)));
+        headerDivider.setBackgroundColor(Color.parseColor("#dcdcdc"));
+        root.addView(headerDivider, new LinearLayout.LayoutParams(-1, dp(1f)));
 
         // 2. Book & Chapter Banner: 📖 <Book Title> • <Chapter>
         bannerView = new TextView(this);
@@ -327,21 +341,12 @@ public final class ReaderActivity extends Activity {
         root.addView(bannerView);
 
         View bannerDivider = new View(this);
-        bannerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(bannerDivider, new LinearLayout.LayoutParams(-1, dp(1.5f)));
+        bannerDivider.setBackgroundColor(Color.parseColor("#dcdcdc"));
+        root.addView(bannerDivider, new LinearLayout.LayoutParams(-1, dp(1f)));
 
         // 3. Middle Reading Stage
         wordView = new WordView(this);
         root.addView(wordView, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        // Hint below stage
-        TextView hint = new TextView(this);
-        hint.setText("Тап: слева −10 · центр старт / пауза · справа +10");
-        hint.setTextSize(11.5f);
-        hint.setTextColor(Color.parseColor("#444444"));
-        hint.setGravity(Gravity.CENTER);
-        hint.setPadding(0, dp(4), 0, dp(4));
-        root.addView(hint);
 
         // 4. Paused Context Card (visible on pause)
         contextCard = new FrameLayout(this);
@@ -349,27 +354,28 @@ public final class ReaderActivity extends Activity {
         contextCard.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
 
         contextScroll = new ScrollView(this);
+        contextScroll.setFillViewport(true);
         contextView = new TextView(this);
-        contextView.setTextSize(19.5f);
+        contextView.setTextSize(17f);
         contextView.setTypeface(Typeface.SERIF);
         contextView.setTextColor(Color.BLACK);
-        contextView.setLineSpacing(dp(3), 1.3f);
-        contextView.setPadding(dp(16), dp(8), dp(16), dp(8));
+        contextView.setLineSpacing(dp(2.5f), 1.25f);
+        contextView.setPadding(dp(20), dp(10), dp(20), dp(10));
         contextView.setMovementMethod(LinkMovementMethod.getInstance());
         contextScroll.addView(contextView);
         contextCard.addView(contextScroll);
         root.addView(contextCard);
 
-        // 5. Footer divider (2dp solid black)
+        // 5. Footer divider (1dp light gray)
         View footerDivider = new View(this);
-        footerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(footerDivider, new LinearLayout.LayoutParams(-1, dp(2)));
+        footerDivider.setBackgroundColor(Color.parseColor("#dcdcdc"));
+        root.addView(footerDivider, new LinearLayout.LayoutParams(-1, dp(1f)));
 
         // 6. Progress Row: [11 / 71] [━━━━━━●━━━━] [≈ 14 с]
         LinearLayout progressRow = new LinearLayout(this);
         progressRow.setOrientation(LinearLayout.HORIZONTAL);
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
-        progressRow.setPadding(dp(10), dp(4), dp(10), dp(2));
+        progressRow.setPadding(dp(10), dp(2), dp(10), dp(2));
 
         positionView = new TextView(this);
         positionView.setText("0 / 0");
@@ -380,7 +386,7 @@ public final class ReaderActivity extends Activity {
 
         progress = new ChapterSeekBar(this);
         progress.setPadding(dp(8), 0, dp(8), 0);
-        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(36), 1f));
+        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(26), 1f));
 
         remainingView = new TextView(this);
         remainingView.setText("—");
@@ -400,11 +406,11 @@ public final class ReaderActivity extends Activity {
         });
 
         // 7. Single-row Controls Bar:
-        // [★] [−] 300 сл/м [+]      [−10] [‹] [ ▶ ] [›] [+10]
+        // [🔖] [−] 300 сл/м [+]      [−10] [‹] ( ▶ ) [›] [+10]
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.CENTER_VERTICAL);
-        controls.setPadding(dp(6), dp(4), dp(6), dp(8));
+        controls.setPadding(dp(6), dp(2), dp(6), dp(6));
 
         markButton = new BookmarkButton(this, density);
         markButton.setOnClickListener(new View.OnClickListener() {
@@ -414,7 +420,7 @@ public final class ReaderActivity extends Activity {
             public boolean onLongClick(View v) { showBookmarks(); return true; }
         });
 
-        Button slower = makeFlatButton("−", 34, 46, false, 22f, new View.OnClickListener() {
+        Button slower = makeFlatButton("−", 32, 44, false, 24f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(-25); }
         });
 
@@ -424,45 +430,45 @@ public final class ReaderActivity extends Activity {
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(Color.BLACK);
-        speedView.setPadding(dp(1), 0, dp(1), 0);
+        speedView.setPadding(dp(2), 0, dp(2), 0);
 
-        Button faster = makeFlatButton("+", 34, 46, false, 22f, new View.OnClickListener() {
+        Button faster = makeFlatButton("+", 32, 44, false, 24f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(25); }
         });
 
         View spacer = new View(this);
 
-        Button back10 = makeFlatButton("−10", 38, 46, false, 14.5f, new View.OnClickListener() {
+        Button back10 = makeFlatButton("−10", 38, 44, false, 15f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 10); }
         });
-        Button back1 = makeFlatButton("‹", 30, 46, false, 22f, new View.OnClickListener() {
+        Button back1 = makeFlatButton("‹", 32, 44, false, 24f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 1); }
         });
-        playButton = makeFlatButton("▶", 54, 48, true, 22f, new View.OnClickListener() {
+        playButton = makeFlatButton("▶", 50, 50, true, 22f, new View.OnClickListener() {
             public void onClick(View v) { toggle(); }
         });
-        Button fwd1 = makeFlatButton("›", 30, 46, false, 22f, new View.OnClickListener() {
+        Button fwd1 = makeFlatButton("›", 32, 44, false, 24f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 1); }
         });
-        Button fwd10 = makeFlatButton("+10", 38, 46, false, 14.5f, new View.OnClickListener() {
+        Button fwd10 = makeFlatButton("+10", 38, 44, false, 15f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 10); }
         });
 
-        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
         btnParams.setMargins(dp(1), 0, dp(1), 0);
 
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(48), 1.45f);
-        playParams.setMargins(dp(2), 0, dp(2), 0);
+        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(dp(50), dp(50));
+        playParams.setMargins(dp(4), 0, dp(4), 0);
 
-        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(50), dp(46));
+        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(52), dp(44));
         speedParams.setMargins(dp(1), 0, dp(1), 0);
 
-        controls.addView(markButton, new LinearLayout.LayoutParams(0, dp(46), 1f));
+        controls.addView(markButton, new LinearLayout.LayoutParams(dp(40), dp(44)));
         controls.addView(slower, btnParams);
         controls.addView(speedView, speedParams);
         controls.addView(faster, btnParams);
 
-        controls.addView(spacer, new LinearLayout.LayoutParams(dp(3), -1));
+        controls.addView(spacer, new LinearLayout.LayoutParams(dp(4), -1));
 
         controls.addView(back10, btnParams);
         controls.addView(back1, btnParams);
@@ -585,26 +591,33 @@ public final class ReaderActivity extends Activity {
             wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             return;
         }
-        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(145)));
+        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(110)));
         contextCard.setVisibility(View.VISIBLE);
 
         final int current = clock.index();
         SpannableStringBuilder builder = new SpannableStringBuilder();
-        int startIdx = Math.max(0, current - 40);
-        int endIdx = Math.min(book.words.length, current + 60);
+        int startIdx = Math.max(0, current - 120);
+        int endIdx = Math.min(book.words.length, current + 160);
 
+        int currentWordStartInSpan = -1;
+        int pStartSpan = 0;
         boolean isParagraphStart = true;
+        byte currentParagraphType = BookData.TYPE_NORMAL;
+
         for (int i = startIdx; i < endIdx; i++) {
             final int position = i;
             byte type = (book.types != null && i < book.types.length) ? book.types[i] : BookData.TYPE_NORMAL;
 
             if (isParagraphStart) {
+                pStartSpan = builder.length();
+                currentParagraphType = type;
                 if (type == BookData.TYPE_EPIGRAPH) {
-                    builder.append("   “ ");
+                    // No indent, epigraph is right-aligned block
                 } else if (type == BookData.TYPE_AUTHOR) {
-                    builder.append("         — ");
+                    builder.append("— ");
                 } else {
-                    builder.append("   ");
+                    // Book paragraph first line indent (красная строка)
+                    builder.append("\u00A0\u00A0\u00A0\u00A0");
                 }
                 isParagraphStart = false;
             }
@@ -612,6 +625,11 @@ public final class ReaderActivity extends Activity {
             int s = builder.length();
             builder.append(book.words[i]);
             int e = builder.length();
+
+            if (i == current) {
+                currentWordStartInSpan = s;
+                builder.setSpan(new BoxWordSpan(density), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
 
             builder.setSpan(new ClickableSpan() {
                 @Override
@@ -625,19 +643,11 @@ public final class ReaderActivity extends Activity {
                 }
             }, s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 
-            if (type == BookData.TYPE_EPIGRAPH) {
-                builder.setSpan(new StyleSpan(Typeface.ITALIC), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (type == BookData.TYPE_AUTHOR) {
-                builder.setSpan(new StyleSpan(Typeface.BOLD), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-
-            if (i == current) {
-                builder.setSpan(new BoxWordSpan(density), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-
-            if (book.paragraphEnds[i]) {
-                if (type == BookData.TYPE_EPIGRAPH) {
-                    builder.append(" ”");
+            if (book.paragraphEnds[i] || i == endIdx - 1) {
+                int pEndSpan = builder.length();
+                if (currentParagraphType == BookData.TYPE_EPIGRAPH || currentParagraphType == BookData.TYPE_AUTHOR) {
+                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 builder.append("\n");
                 isParagraphStart = true;
@@ -646,6 +656,22 @@ public final class ReaderActivity extends Activity {
             }
         }
         contextView.setText(builder);
+
+        final int targetOffset = currentWordStartInSpan;
+        if (targetOffset >= 0) {
+            contextView.post(new Runnable() {
+                @Override
+                public void run() {
+                    Layout layout = contextView.getLayout();
+                    if (layout != null && targetOffset < contextView.getText().length()) {
+                        int line = layout.getLineForOffset(targetOffset);
+                        int lineTop = layout.getLineTop(line);
+                        int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
+                        contextScroll.smoothScrollTo(0, targetY);
+                    }
+                }
+            });
+        }
     }
 
     private void toggle() {
