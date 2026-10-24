@@ -772,6 +772,37 @@ public final class ReaderActivity extends Activity {
         }
     }
 
+    public static final class EpigraphSpan implements LeadingMarginSpan {
+        private final int indent;
+        private final int stripeWidth;
+        private final int gap;
+
+        public EpigraphSpan(int indent, int stripeWidth, int gap) {
+            this.indent = indent;
+            this.stripeWidth = stripeWidth;
+            this.gap = gap;
+        }
+
+        @Override
+        public int getLeadingMargin(boolean first) {
+            return indent + stripeWidth + gap;
+        }
+
+        @Override
+        public void drawLeadingMargin(Canvas c, Paint p, int x, int dir, int top, int baseline, int bottom,
+                                      CharSequence text, int start, int end, boolean first, Layout layout) {
+            Paint.Style oldStyle = p.getStyle();
+            int oldColor = p.getColor();
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.BLACK);
+            int left = x + dir * indent;
+            int right = left + dir * stripeWidth;
+            c.drawRect(Math.min(left, right), top + 2, Math.max(left, right), bottom - 2, p);
+            p.setStyle(oldStyle);
+            p.setColor(oldColor);
+        }
+    }
+
     private void showContext() {
         if (book == null || clock.playing() || !preferences.getBoolean("context", true)) {
             contextCard.setVisibility(View.GONE);
@@ -782,7 +813,7 @@ public final class ReaderActivity extends Activity {
         contextCard.setVisibility(View.VISIBLE);
 
         final int current = clock.index();
-        SpannableStringBuilder builder = new SpannableStringBuilder();
+        final SpannableStringBuilder builder = new SpannableStringBuilder();
         int startIdx = Math.max(0, current - 120);
         int endIdx = Math.min(book.words.length, current + 160);
 
@@ -799,11 +830,17 @@ public final class ReaderActivity extends Activity {
                 pStartSpan = builder.length();
                 currentParagraphType = type;
                 if (type == BookData.TYPE_EPIGRAPH) {
-                    // No indent, epigraph is right-aligned block
+                    if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
+                        builder.append("\n");
+                    }
+                    if (!book.words[i].matches("^[«“\"'].*")) {
+                        builder.append("“ ");
+                    }
                 } else if (type == BookData.TYPE_AUTHOR) {
-                    builder.append("— ");
+                    if (!book.words[i].matches("^[—–-].*")) {
+                        builder.append("— ");
+                    }
                 } else if (type == BookData.TYPE_CHAPTER) {
-                    // Blank line before chapter title
                     if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
                         builder.append("\n");
                     }
@@ -842,10 +879,14 @@ public final class ReaderActivity extends Activity {
                     builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new RelativeSizeSpan(1.22f), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.append("\n\n");
-                } else if (currentParagraphType == BookData.TYPE_EPIGRAPH || currentParagraphType == BookData.TYPE_AUTHOR) {
-                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } else if (currentParagraphType == BookData.TYPE_EPIGRAPH) {
+                    builder.setSpan(new EpigraphSpan(dp(26), dp(2.8f), dp(10)), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.append("\n");
+                } else if (currentParagraphType == BookData.TYPE_AUTHOR) {
+                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n\n");
                 } else {
                     builder.append("\n");
                 }
@@ -857,20 +898,71 @@ public final class ReaderActivity extends Activity {
         contextView.setText(builder);
 
         final int targetOffset = currentWordStartInSpan;
-        if (targetOffset >= 0) {
-            contextView.post(new Runnable() {
-                @Override
-                public void run() {
-                    Layout layout = contextView.getLayout();
-                    if (layout != null && targetOffset < contextView.getText().length()) {
-                        int line = layout.getLineForOffset(targetOffset);
-                        int lineTop = layout.getLineTop(line);
+        contextView.post(new Runnable() {
+            @Override
+            public void run() {
+                Layout layout = contextView.getLayout();
+                if (layout != null) {
+                    int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
+                    if (availableWidth > 0) {
+                        CharSequence text = builder;
+                        int lineCount = layout.getLineCount();
+                        boolean modified = false;
+
+                        for (int l = 0; l < lineCount; l++) {
+                            int lineStart = layout.getLineStart(l);
+                            int lineEnd = layout.getLineEnd(l);
+                            if (lineEnd <= lineStart) continue;
+
+                            char lastChar = text.charAt(lineEnd - 1);
+                            if (lastChar == '\n' || lastChar == '\r') continue;
+                            if (lineEnd < text.length() && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
+
+                            Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
+                            if (alignSpans != null && alignSpans.length > 0) continue;
+                            Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
+                            if (epigraphSpans != null && epigraphSpans.length > 0) continue;
+
+                            float lineWidth = layout.getLineWidth(l);
+                            float emptySpace = availableWidth - lineWidth;
+
+                            if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
+                                int spaceCount = 0;
+                                for (int ci = lineStart; ci < lineEnd; ci++) {
+                                    if (text.charAt(ci) == ' ') spaceCount++;
+                                }
+                                if (spaceCount >= 1) {
+                                    float spaceWidth = contextView.getPaint().measureText(" ");
+                                    float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
+                                    float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
+                                    if (scaleX > 1.05f && scaleX <= 2.8f) {
+                                        for (int ci = lineStart; ci < lineEnd; ci++) {
+                                            if (text.charAt(ci) == ' ') {
+                                                builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                                modified = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (modified) {
+                            contextView.setText(builder);
+                        }
+                    }
+                }
+
+                if (targetOffset >= 0 && targetOffset < contextView.getText().length()) {
+                    Layout lyt = contextView.getLayout();
+                    if (lyt != null) {
+                        int line = lyt.getLineForOffset(targetOffset);
+                        int lineTop = lyt.getLineTop(line);
                         int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
                         contextScroll.smoothScrollTo(0, targetY);
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     private void toggle() {

@@ -108,53 +108,77 @@ public final class BookData {
         byte[] types = new byte[words.length];
         for (int i = 0; i < words.length && i < wordTypes.size; i++) types[i] = wordTypes.data[i];
 
-        // Post-pass: detect chapter titles and plain-text epigraph + author patterns
-        int pStart = 0;
-        int paragraphIndex = 0;
-        ArrayList<Chapter> detectedChapters = new ArrayList<Chapter>();
+        // Post-pass: detect chapter titles, book header, and plain-text epigraph + author patterns
+        ArrayList<int[]> paragraphs = new ArrayList<int[]>();
+        int curPStart = 0;
         for (int i = 0; i < words.length; i++) {
             if (ends[i]) {
-                int pLen = i - pStart + 1;
+                paragraphs.add(new int[]{curPStart, i});
+                curPStart = i + 1;
+            }
+        }
 
-                // Chapter title heuristic:
-                // Matches patterns like:
-                // "2. Рэдрик Шухарт, 28 лет, женат, без определённых занятий"
-                // "Глава 1", "Часть 2", "Раздел III", "I. Введение"
-                if (pLen >= 1 && pLen <= 30 && types[pStart] == TYPE_NORMAL) {
-                    StringBuilder pBuf = new StringBuilder();
-                    for (int k = pStart; k <= i && k < words.length; k++) {
-                        pBuf.append(k == pStart ? "" : " ").append(words[k]);
-                    }
-                    String pText = pBuf.toString().trim();
-                    if (pText.matches("^(?:(?:\\d+|[IVXLCDM]+)\\.|(?:Глава|Часть|Раздел|Section|Chapter)\\b)[\\s\\S]*")) {
-                        for (int k = pStart; k <= i && k < words.length; k++) {
-                            types[k] = TYPE_CHAPTER;
-                        }
-                        detectedChapters.add(new Chapter(pText, pStart));
-                    }
-                }
+        ArrayList<Chapter> detectedChapters = new ArrayList<Chapter>();
 
-                // Never treat the first 2 paragraphs (author / book title / subtitle) as an epigraph
-                if (paragraphIndex >= 2 && pLen >= 3 && pLen <= 65 && i + 1 < words.length) {
-                    int nextEnd = i + 1;
-                    while (nextEnd < words.length - 1 && !ends[nextEnd]) nextEnd++;
-                    if (nextEnd < words.length) {
-                        int nextLen = nextEnd - (i + 1) + 1;
-                        if (nextLen >= 1 && nextLen <= 6) {
-                            StringBuilder authorBuf = new StringBuilder();
-                            for (int k = i + 1; k <= nextEnd && k < words.length; k++) authorBuf.append(k == i + 1 ? "" : " ").append(words[k]);
-                            String authorLine = authorBuf.toString().trim();
-                            boolean authorHasDash = authorLine.matches("^[—–-]\\s*[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$");
-                            boolean quoteHasQuotes = words[pStart].matches("^[«“\"'].*");
-                            if (authorHasDash || (quoteHasQuotes && authorLine.matches("^[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$"))) {
-                                for (int k = pStart; k <= i && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
-                                for (int k = i + 1; k <= nextEnd && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
-                            }
-                        }
-                    }
+        // 1. Detect chapter headings by text patterns
+        for (int pi = 0; pi < paragraphs.size(); pi++) {
+            int[] p = paragraphs.get(pi);
+            int pLen = p[1] - p[0] + 1;
+            if (pLen >= 1 && pLen <= 30 && types[p[0]] == TYPE_NORMAL) {
+                StringBuilder pBuf = new StringBuilder();
+                for (int k = p[0]; k <= p[1]; k++) pBuf.append(k == p[0] ? "" : " ").append(words[k]);
+                String pText = pBuf.toString().trim();
+                if (pText.matches("^(?:(?:\\d+|[IVXLCDM]+)\\.|(?:Глава|Часть|Раздел|Section|Chapter|ПРОЛОГ|ВВЕДЕНИЕ|ЭПИЛОГ)\\b)[\\s\\S]*")) {
+                    for (int k = p[0]; k <= p[1]; k++) types[k] = TYPE_CHAPTER;
+                    detectedChapters.add(new Chapter(pText, p[0]));
                 }
-                paragraphIndex++;
-                pStart = i + 1;
+            }
+        }
+
+        // 2. Book Title & Author header at start of book:
+        // If the book starts with 1 or 2 short title/author lines before any epigraph or chapters,
+        // highlight them as TYPE_CHAPTER so they are styled prominently like chapter headings
+        if (paragraphs.size() >= 2) {
+            int[] p0 = paragraphs.get(0);
+            int len0 = p0[1] - p0[0] + 1;
+            int[] p1 = paragraphs.get(1);
+            int len1 = p1[1] - p1[0] + 1;
+            if (types[p0[0]] == TYPE_NORMAL && types[p1[0]] == TYPE_NORMAL && len0 <= 8 && len1 <= 10) {
+                for (int k = p0[0]; k <= p0[1]; k++) types[k] = TYPE_CHAPTER;
+                for (int k = p1[0]; k <= p1[1]; k++) types[k] = TYPE_CHAPTER;
+            } else if (types[p0[0]] == TYPE_NORMAL && len0 <= 8) {
+                for (int k = p0[0]; k <= p0[1]; k++) types[k] = TYPE_CHAPTER;
+            }
+        } else if (paragraphs.size() == 1) {
+            int[] p0 = paragraphs.get(0);
+            int len0 = p0[1] - p0[0] + 1;
+            if (types[p0[0]] == TYPE_NORMAL && len0 <= 8) {
+                for (int k = p0[0]; k <= p0[1]; k++) types[k] = TYPE_CHAPTER;
+            }
+        }
+
+        // 3. Epigraph + Author detection in plain text / books without explicit markup:
+        // Matches a short quote (3-70 words) immediately followed by an author signature (1-6 words)
+        for (int pi = 0; pi < paragraphs.size() - 1; pi++) {
+            int[] curP = paragraphs.get(pi);
+            if (types[curP[0]] != TYPE_NORMAL) continue;
+            int pLen = curP[1] - curP[0] + 1;
+            if (pLen < 3 || pLen > 70) continue;
+
+            int[] nextP = paragraphs.get(pi + 1);
+            if (types[nextP[0]] != TYPE_NORMAL && types[nextP[0]] != TYPE_AUTHOR) continue;
+            int nextLen = nextP[1] - nextP[0] + 1;
+            if (nextLen < 1 || nextLen > 6) continue;
+
+            StringBuilder authorBuf = new StringBuilder();
+            for (int k = nextP[0]; k <= nextP[1]; k++) authorBuf.append(k == nextP[0] ? "" : " ").append(words[k]);
+            String authorLine = authorBuf.toString().trim();
+
+            if (authorLine.matches("^(?:[—–-]\\s*)?[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$") &&
+                !authorLine.endsWith(",") && !authorLine.endsWith(":") && !authorLine.endsWith("?")) {
+                for (int k = curP[0]; k <= curP[1]; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
+                for (int k = nextP[0]; k <= nextP[1]; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
+                pi++;
             }
         }
 

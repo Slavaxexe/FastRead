@@ -69,6 +69,7 @@ public final class BookParser {
         final StringBuilder title = new StringBuilder();
         final boolean fb2;
         int bodyDepth, depth, skipDepth, titleDepth, sectionTitleDepth;
+        int epigraphDepth, authorDepth;
         TextHandler(boolean fb2) { this.fb2 = fb2; }
         private void paragraph() { if (text.length() > 0 && text.charAt(text.length() - 1) != '\n') text.append("\n\n"); }
         public void startElement(String uri, String local, String name, Attributes attrs) {
@@ -77,21 +78,52 @@ public final class BookParser {
             if (skipDepth > 0) return;
             if (tag.equals("binary") || tag.equals("script") || tag.equals("style") || tag.equals("head") || (fb2 && tag.equals("body") && "notes".equals(attrs.getValue("name")))) { skipDepth = depth; return; }
             if (tag.equals("body")) bodyDepth = depth;
-            if (tag.equals("epigraph")) { paragraph(); text.append("[[EPIGRAPH]]\n\n"); }
-            else if (tag.equals("text-author")) { paragraph(); text.append("[[AUTHOR]]\n\n"); }
-            else if (fb2 && tag.equals("title") && bodyDepth > 0) { sectionTitleDepth = depth; paragraph(); text.append("[[CHAPTER]]\n\n"); }
-            else if (tag.matches("h[1-4]")) { paragraph(); text.append("[[CHAPTER]]\n\n"); }
-            else if (tag.matches("p|v|div|h[1-6]|br|li|section|subtitle|blockquote")) paragraph();
+
+            String cls = attrs != null ? attrs.getValue("class") : null;
+            String clsLower = cls != null ? cls.toLowerCase(Locale.ROOT) : "";
+            String epubType = attrs != null ? attrs.getValue("epub:type") : null;
+            String epubLower = epubType != null ? epubType.toLowerCase(Locale.ROOT) : "";
+
+            boolean isEpigraph = tag.equals("epigraph") || clsLower.contains("epigraph") || epubLower.contains("epigraph");
+            boolean isAuthor = tag.equals("text-author") || clsLower.contains("text-author") || clsLower.contains("author") || clsLower.contains("sign");
+            boolean isChapter = (fb2 && tag.equals("title") && bodyDepth > 0) || tag.matches("h[1-4]") ||
+                (!fb2 && (clsLower.contains("title") || clsLower.contains("chapter") || epubLower.contains("title")));
+
+            if (isEpigraph && epigraphDepth == 0) {
+                epigraphDepth = depth;
+                paragraph();
+                text.append("[[EPIGRAPH]]\n\n");
+            } else if (isAuthor && authorDepth == 0) {
+                authorDepth = depth;
+                paragraph();
+                text.append("[[AUTHOR]]\n\n");
+            } else if (isChapter && sectionTitleDepth == 0) {
+                sectionTitleDepth = depth;
+                paragraph();
+                text.append("[[CHAPTER]]\n\n");
+            } else if (tag.matches("p|v|div|h[1-6]|br|li|section|subtitle|blockquote")) {
+                paragraph();
+            }
         }
         public void endElement(String uri, String local, String name) {
             String tag = (local.length() > 0 ? local : name).toLowerCase(Locale.ROOT);
             if (skipDepth == depth) skipDepth = 0;
             else if (skipDepth == 0) {
-                if (tag.equals("epigraph")) { paragraph(); text.append("[[/EPIGRAPH]]\n\n"); }
-                else if (tag.equals("text-author")) { paragraph(); text.append("[[/AUTHOR]]\n\n"); }
-                else if (fb2 && tag.equals("title") && sectionTitleDepth == depth) { sectionTitleDepth = 0; paragraph(); text.append("[[/CHAPTER]]\n\n"); }
-                else if (tag.matches("h[1-4]")) { paragraph(); text.append("[[/CHAPTER]]\n\n"); }
-                else if (tag.matches("p|v|div|h[1-6]|li|section|subtitle|blockquote")) paragraph();
+                if (authorDepth == depth) {
+                    authorDepth = 0;
+                    paragraph();
+                    text.append("[[/AUTHOR]]\n\n");
+                } else if (epigraphDepth == depth) {
+                    epigraphDepth = 0;
+                    paragraph();
+                    text.append("[[/EPIGRAPH]]\n\n");
+                } else if (sectionTitleDepth == depth) {
+                    sectionTitleDepth = 0;
+                    paragraph();
+                    text.append("[[/CHAPTER]]\n\n");
+                } else if (tag.matches("p|v|div|h[1-6]|li|section|subtitle|blockquote")) {
+                    paragraph();
+                }
             }
             if (bodyDepth == depth) bodyDepth = 0;
             if (titleDepth == depth) titleDepth = 0;
@@ -167,9 +199,50 @@ public final class BookParser {
             parsed.text = text.toString(); return parsed;
         } finally { zip.close(); }
     }
+    private static boolean isEpub(File file) {
+        try {
+            ZipFile z = new ZipFile(file);
+            try { return z.getEntry("META-INF/container.xml") != null; }
+            finally { z.close(); }
+        } catch (Exception ignored) { return false; }
+    }
+    private static Parsed zipArchive(File file) throws Exception {
+        if (isEpub(file)) return epub(file);
+        ZipFile zip = new ZipFile(file);
+        try {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            ZipEntry best = null;
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String n = e.getName().toLowerCase(Locale.ROOT);
+                if (n.endsWith(".fb2") || n.endsWith(".html") || n.endsWith(".htm") || n.endsWith(".txt")) {
+                    best = e;
+                    if (n.endsWith(".fb2")) break;
+                }
+            }
+            if (best != null) {
+                InputStream in = zip.getInputStream(best);
+                String text;
+                try { text = decode(read(in, MAX_BYTES)); } finally { in.close(); }
+                String bn = best.getName().toLowerCase(Locale.ROOT);
+                if (bn.endsWith(".fb2")) return markup(text, true);
+                if (bn.endsWith(".html") || bn.endsWith(".htm")) {
+                    try { return markup(text, false); }
+                    catch (Exception ex) { Parsed p = new Parsed(); p.text = fallbackHtml(text); return p; }
+                }
+                Parsed p = new Parsed();
+                p.text = text.replace("\r\n", "\n").replace('\r', '\n').replace("\u00ad", "");
+                return p;
+            }
+        } finally {
+            zip.close();
+        }
+        throw new IOException("В архиве ZIP не найдены поддерживаемые книги (.epub, .fb2, .txt)");
+    }
     public static Parsed parse(File file, String name) throws Exception {
         String lower = name.toLowerCase(Locale.ROOT); Parsed parsed;
-        if (lower.endsWith(".epub")) parsed = epub(file);
+        if (lower.endsWith(".epub") || isEpub(file)) parsed = epub(file);
+        else if (lower.endsWith(".zip")) parsed = zipArchive(file);
         else {
             InputStream input = new FileInputStream(file); String text;
             try { text = decode(read(input, MAX_BYTES)); } finally { input.close(); }
