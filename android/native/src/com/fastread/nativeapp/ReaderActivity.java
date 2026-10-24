@@ -20,10 +20,10 @@ import java.util.concurrent.*;
 
 public final class ReaderActivity extends Activity {
     private static final int OPEN_BOOK = 10;
-    private static final String DEMO = "Привет! Это FastRead — скорочтение для электронных книг Onyx BOOX.\n\n" +
+    private static final String DEMO = "Привет! Это FastRead — скорочтение для Android.\n\n" +
         "Смотри на выделенную букву и не двигай взглядом. Каждое слово выравнивается по центру, поэтому глазу не нужно прыгать по строке.\n\n" +
         "Нажми на центр экрана или Пробел для старта и паузы. Тап у левого края перематывает назад на 10 слов, тап у правого края — вперёд.\n\n" +
-        "Кнопки громкости и листания на читалке также управляют чтением. Встретил интересное место — жми закладку слева, чтобы сохранить его.";
+        "Кнопки громкости также управляют чтением. Встретил интересное место — жми закладку слева, чтобы сохранить его.";
 
     private final Handler handler = new Handler();
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -624,7 +624,7 @@ public final class ReaderActivity extends Activity {
         clock.pause();
         new AlertDialog.Builder(this)
             .setTitle("Открыть книгу")
-            .setItems(new String[]{"📂 Выбрать через систему", "📁 Память читалки (Onyx BOOX / SD)"}, new DialogInterface.OnClickListener() {
+            .setItems(new String[]{"📂 Выбрать через проводник", "📁 Память устройства (Внутренняя память / SD)"}, new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {
                     if (which == 0) systemPicker();
                     else storagePicker();
@@ -1007,25 +1007,7 @@ public final class ReaderActivity extends Activity {
         final String[] styleNames = {"Прямоугольная рамка", "Инвертированный блок", "Подчёркивание", "Стрелки сверку/снизу"};
         final Spinner style = spinner(box, "Выделение опорной буквы", styleNames, Math.max(0, Arrays.asList(styles).indexOf(preferences.getString("focusStyle", "box"))));
 
-        final CheckBox keys = check(box, "Кнопки листания меняют скорость (иначе ±10 слов)", "keysSpeed", false);
-
-        // BOOX acceleration options
-        final CheckBox a2 = check(box, "A2 режим E-Ink во время чтения", "autoA2", true);
-        final CheckBox clear = check(box, "Полная очистка экрана (GC) при паузе", "clearOnPause", false);
-        final CheckBox monoInk = check(box, "Чёрно-белый режим глифов без полутонов", "monoInk", true);
-
-        a2.setVisibility(ScreenController.BOOX ? View.VISIBLE : View.GONE);
-        clear.setVisibility(ScreenController.BOOX ? View.VISIBLE : View.GONE);
-        monoInk.setVisibility(ScreenController.BOOX ? View.VISIBLE : View.GONE);
-
-        if (ScreenController.BOOX) {
-            Button refresh = makeFlatButton("Очистить экран от артефактов сейчас", 0, 42, false, new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (!screen.fullRefresh(wordView)) toast("Команда очистки отклонена прошивкой");
-                }
-            });
-            box.addView(refresh);
-        }
+        final CheckBox keys = check(box, "Кнопки громкости меняют скорость (иначе ±10 слов)", "keysSpeed", false);
 
         TextView info = new TextView(this);
         info.setText("\n" + screen.description() + "\nУстройство: " + Build.MODEL + " (" + Build.DISPLAY + ")");
@@ -1053,9 +1035,6 @@ public final class ReaderActivity extends Activity {
                         .putString("font", fonts[Math.max(0, font.getSelectedItemPosition())])
                         .putString("focusStyle", styles[Math.max(0, style.getSelectedItemPosition())])
                         .putBoolean("keysSpeed", keys.isChecked())
-                        .putBoolean("autoA2", a2.isChecked())
-                        .putBoolean("clearOnPause", clear.isChecked())
-                        .putBoolean("monoInk", monoInk.isChecked())
                         .apply();
                     applySettings();
                     clock.seek(clock.index());
