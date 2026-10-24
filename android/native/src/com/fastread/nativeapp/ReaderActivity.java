@@ -37,7 +37,7 @@ public final class ReaderActivity extends Activity {
     private float density;
     private WordView wordView;
     private TextView bannerView, positionView, remainingView, speedView, contextView;
-    private Button playButton;
+    private VectorButton playButton;
     private BookmarkButton markButton;
     private ChapterSeekBar progress;
     private ScrollView contextScroll;
@@ -136,13 +136,13 @@ public final class ReaderActivity extends Activity {
             setFocusable(true);
 
             GradientDrawable normal = new GradientDrawable();
-            normal.setColor(Color.parseColor("#f0f0f0"));
-            normal.setStroke(Math.round(1f * density), Color.parseColor("#e0e0e0"));
+            normal.setColor(Color.WHITE);
+            normal.setStroke(Math.round(1.5f * density), Color.BLACK);
             normal.setCornerRadius(8f * density);
 
             GradientDrawable pressed = new GradientDrawable();
             pressed.setColor(Color.parseColor("#d8d8d8"));
-            pressed.setStroke(Math.round(1f * density), Color.parseColor("#c0c0c0"));
+            pressed.setStroke(Math.round(1.5f * density), Color.BLACK);
             pressed.setCornerRadius(8f * density);
 
             StateListDrawable states = new StateListDrawable();
@@ -156,6 +156,12 @@ public final class ReaderActivity extends Activity {
                 this.bookmarked = bm;
                 invalidate();
             }
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            return true;
         }
 
         @Override
@@ -189,6 +195,142 @@ public final class ReaderActivity extends Activity {
                 paint.setStrokeJoin(Paint.Join.ROUND);
                 paint.setStrokeCap(Paint.Cap.ROUND);
                 canvas.drawPath(path, paint);
+            }
+        }
+    }
+
+    public static class VectorButton extends View {
+        public static final int TYPE_MINUS = 1;
+        public static final int TYPE_PLUS = 2;
+        public static final int TYPE_PREV = 3;
+        public static final int TYPE_NEXT = 4;
+        public static final int TYPE_PLAY_PAUSE = 5;
+        public static final int TYPE_BACK10 = 6;
+        public static final int TYPE_FWD10 = 7;
+
+        private final int type;
+        private final float density;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private boolean playing = false;
+
+        public VectorButton(Context context, float density, int type) {
+            super(context);
+            this.density = density;
+            this.type = type;
+            setClickable(true);
+            setFocusable(true);
+
+            GradientDrawable normal = new GradientDrawable();
+            normal.setColor(Color.TRANSPARENT);
+            normal.setCornerRadius(6f * density);
+
+            GradientDrawable pressed = new GradientDrawable();
+            pressed.setColor(Color.parseColor("#d8d8d8"));
+            pressed.setCornerRadius(6f * density);
+
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed}, pressed);
+            states.addState(new int[]{}, normal);
+            setBackgroundDrawable(states);
+        }
+
+        public void setPlaying(boolean playing) {
+            if (this.playing != playing) {
+                this.playing = playing;
+                invalidate();
+            }
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            return true;
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            float cx = w / 2f;
+            float cy = h / 2f;
+
+            paint.setColor(Color.BLACK);
+
+            if (type == TYPE_MINUS) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(2.6f * density);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                float half = 8.5f * density;
+                canvas.drawLine(cx - half, cy, cx + half, cy, paint);
+            } else if (type == TYPE_PLUS) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(2.6f * density);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                float half = 8.5f * density;
+                canvas.drawLine(cx - half, cy, cx + half, cy, paint);
+                canvas.drawLine(cx, cy - half, cx, cy + half, paint);
+            } else if (type == TYPE_PREV) {
+                // Large crisp chevron left ‹
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(3f * density);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                path.reset();
+                path.moveTo(cx + 5.5f * density, cy - 9.5f * density);
+                path.lineTo(cx - 5.5f * density, cy);
+                path.lineTo(cx + 5.5f * density, cy + 9.5f * density);
+                canvas.drawPath(path, paint);
+            } else if (type == TYPE_NEXT) {
+                // Large crisp chevron right ›
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(3f * density);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                path.reset();
+                path.moveTo(cx - 5.5f * density, cy - 9.5f * density);
+                path.lineTo(cx + 5.5f * density, cy);
+                path.lineTo(cx - 5.5f * density, cy + 9.5f * density);
+                canvas.drawPath(path, paint);
+            } else if (type == TYPE_PLAY_PAUSE) {
+                if (playing) {
+                    // Pause bars: two thick rounded bars
+                    paint.setStyle(Paint.Style.FILL);
+                    float barW = 4.5f * density;
+                    float barH = 19f * density;
+                    float gap = 5.5f * density;
+                    canvas.drawRoundRect(new RectF(cx - gap / 2f - barW, cy - barH / 2f, cx - gap / 2f, cy + barH / 2f), 1.5f * density, 1.5f * density, paint);
+                    canvas.drawRoundRect(new RectF(cx + gap / 2f, cy - barH / 2f, cx + gap / 2f + barW, cy + barH / 2f), 1.5f * density, 1.5f * density, paint);
+                } else {
+                    // Play triangle: perfectly centered equilateral triangle
+                    paint.setStyle(Paint.Style.FILL);
+                    path.reset();
+                    float size = 19f * density;
+                    float left = cx - 7.5f * density;
+                    float right = cx + 9.5f * density;
+                    float top = cy - size / 2f;
+                    float bottom = cy + size / 2f;
+                    path.moveTo(left, top);
+                    path.lineTo(right, cy);
+                    path.lineTo(left, bottom);
+                    path.close();
+                    canvas.drawPath(path, paint);
+                }
+            } else if (type == TYPE_BACK10) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                paint.setTextSize(15f * density);
+                paint.setTextAlign(Paint.Align.CENTER);
+                float y = cy - (paint.ascent() + paint.descent()) / 2f;
+                canvas.drawText("−10", cx, y, paint);
+            } else if (type == TYPE_FWD10) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                paint.setTextSize(15f * density);
+                paint.setTextAlign(Paint.Align.CENTER);
+                float y = cy - (paint.ascent() + paint.descent()) / 2f;
+                canvas.drawText("+10", cx, y, paint);
             }
         }
     }
@@ -354,7 +496,7 @@ public final class ReaderActivity extends Activity {
         contextCard = new FrameLayout(this);
         GradientDrawable cardBg = new GradientDrawable();
         cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(1.2f), Color.parseColor("#cccccc"));
+        cardBg.setStroke(dp(1.8f), Color.BLACK);
         cardBg.setCornerRadius(dp(8f));
         contextCard.setBackgroundDrawable(cardBg);
 
@@ -424,7 +566,7 @@ public final class ReaderActivity extends Activity {
         controls.setGravity(Gravity.CENTER_VERTICAL);
         controls.setPadding(dp(8), dp(4), dp(8), dp(6));
 
-        // Group 1: Bookmark Button
+        // Group 1: Bookmark Button (framed pod)
         markButton = new BookmarkButton(this, density);
         markButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { toggleBookmark(); }
@@ -433,85 +575,93 @@ public final class ReaderActivity extends Activity {
             public boolean onLongClick(View v) { showBookmarks(); return true; }
         });
 
-        // Group 2: Speed Controls Pod (shaded rounded container)
+        // Group 2: Speed Controls Pod (snug pod with crisp black border)
         LinearLayout speedPod = new LinearLayout(this);
         speedPod.setOrientation(LinearLayout.HORIZONTAL);
         speedPod.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable speedBg = new GradientDrawable();
-        speedBg.setColor(Color.parseColor("#f0f0f0"));
+        speedBg.setColor(Color.WHITE);
         speedBg.setCornerRadius(dp(8f));
-        speedBg.setStroke(dp(1f), Color.parseColor("#e0e0e0"));
+        speedBg.setStroke(dp(1.5f), Color.BLACK);
         speedPod.setBackgroundDrawable(speedBg);
         speedPod.setPadding(dp(2), 0, dp(2), 0);
 
-        Button slower = makeFlatButton("−", 36, 44, false, 28f, new View.OnClickListener() {
+        VectorButton slower = new VectorButton(this, density, VectorButton.TYPE_MINUS);
+        slower.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(-25); }
         });
 
         speedView = new TextView(this);
         speedView.setText("300\nсл/м");
-        speedView.setTextSize(13f);
+        speedView.setTextSize(12.5f);
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(Color.BLACK);
         speedView.setPadding(dp(4), 0, dp(4), 0);
 
-        Button faster = makeFlatButton("+", 36, 44, false, 28f, new View.OnClickListener() {
+        VectorButton faster = new VectorButton(this, density, VectorButton.TYPE_PLUS);
+        faster.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(25); }
         });
 
-        speedPod.addView(slower, new LinearLayout.LayoutParams(-2, dp(44)));
-        speedPod.addView(speedView, new LinearLayout.LayoutParams(-2, dp(44)));
-        speedPod.addView(faster, new LinearLayout.LayoutParams(-2, dp(44)));
+        speedPod.addView(slower, new LinearLayout.LayoutParams(dp(36), dp(42)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(54), dp(42)));
+        speedPod.addView(faster, new LinearLayout.LayoutParams(dp(36), dp(42)));
 
-        // Group 3: Transport Controls Pod (shaded rounded container)
+        // Group 3: Transport Controls Pod (snug pod with crisp black border)
         LinearLayout transportPod = new LinearLayout(this);
         transportPod.setOrientation(LinearLayout.HORIZONTAL);
         transportPod.setGravity(Gravity.CENTER_VERTICAL);
         GradientDrawable transportBg = new GradientDrawable();
-        transportBg.setColor(Color.parseColor("#f0f0f0"));
+        transportBg.setColor(Color.WHITE);
         transportBg.setCornerRadius(dp(8f));
-        transportBg.setStroke(dp(1f), Color.parseColor("#e0e0e0"));
+        transportBg.setStroke(dp(1.5f), Color.BLACK);
         transportPod.setBackgroundDrawable(transportBg);
         transportPod.setPadding(dp(2), 0, dp(2), 0);
 
-        Button back10 = makeFlatButton("−10", 40, 44, false, 15f, new View.OnClickListener() {
+        VectorButton back10 = new VectorButton(this, density, VectorButton.TYPE_BACK10);
+        back10.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 10); }
         });
-        Button back1 = makeFlatButton("‹", 38, 44, false, 32f, new View.OnClickListener() {
+
+        VectorButton back1 = new VectorButton(this, density, VectorButton.TYPE_PREV);
+        back1.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 1); }
         });
-        playButton = makeFlatButton("▶", 54, 44, false, 28f, new View.OnClickListener() {
+
+        playButton = new VectorButton(this, density, VectorButton.TYPE_PLAY_PAUSE);
+        playButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { toggle(); }
         });
-        Button fwd1 = makeFlatButton("›", 38, 44, false, 32f, new View.OnClickListener() {
+
+        VectorButton fwd1 = new VectorButton(this, density, VectorButton.TYPE_NEXT);
+        fwd1.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 1); }
         });
-        Button fwd10 = makeFlatButton("+10", 40, 44, false, 15f, new View.OnClickListener() {
+
+        VectorButton fwd10 = new VectorButton(this, density, VectorButton.TYPE_FWD10);
+        fwd10.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 10); }
         });
 
-        LinearLayout.LayoutParams tBtnParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        LinearLayout.LayoutParams playBtnParams = new LinearLayout.LayoutParams(0, dp(44), 1.25f);
+        transportPod.addView(back10, new LinearLayout.LayoutParams(dp(40), dp(42)));
+        transportPod.addView(back1, new LinearLayout.LayoutParams(dp(36), dp(42)));
+        transportPod.addView(playButton, new LinearLayout.LayoutParams(dp(48), dp(42)));
+        transportPod.addView(fwd1, new LinearLayout.LayoutParams(dp(36), dp(42)));
+        transportPod.addView(fwd10, new LinearLayout.LayoutParams(dp(40), dp(42)));
 
-        transportPod.addView(back10, tBtnParams);
-        transportPod.addView(back1, tBtnParams);
-        transportPod.addView(playButton, playBtnParams);
-        transportPod.addView(fwd1, tBtnParams);
-        transportPod.addView(fwd10, tBtnParams);
-
-        // Add to controls row with wide gaps between groups
-        controls.addView(markButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        // Add to controls row with flexible space between groups
+        controls.addView(markButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         View spacer1 = new View(this);
-        controls.addView(spacer1, new LinearLayout.LayoutParams(dp(10), -1));
+        controls.addView(spacer1, new LinearLayout.LayoutParams(0, -1, 1f));
 
-        controls.addView(speedPod, new LinearLayout.LayoutParams(-2, dp(44)));
+        controls.addView(speedPod, new LinearLayout.LayoutParams(-2, -2));
 
         View spacer2 = new View(this);
-        controls.addView(spacer2, new LinearLayout.LayoutParams(dp(12), -1));
+        controls.addView(spacer2, new LinearLayout.LayoutParams(0, -1, 1f));
 
-        controls.addView(transportPod, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        controls.addView(transportPod, new LinearLayout.LayoutParams(-2, -2));
 
         root.addView(controls);
 
@@ -587,7 +737,7 @@ public final class ReaderActivity extends Activity {
         progress.setProgress(index);
         updatingProgress = false;
 
-        playButton.setText(clock.playing() ? "❚❚" : "▶");
+        playButton.setPlaying(clock.playing());
 
         boolean isMarked = record != null && record.bookmarks != null && record.bookmarks.contains(index);
         markButton.setBookmarked(isMarked);
