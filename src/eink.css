@@ -556,15 +556,7 @@ body.has-pack #gloss {
   text-align: left;
 }
 
-#context .ctx-epigraph::before {
-  content: "“";
-  font-size: 26px;
-  line-height: 0;
-  vertical-align: -4px;
-  margin-right: 4px;
-  font-family: Georgia, serif;
-  font-weight: 700;
-}
+
 
 #context .ctx-author {
   margin: 0.2em 0 1.2em auto;

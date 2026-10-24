@@ -733,18 +733,6 @@ function computeTokens() {
         continue;
       }
 
-      // Auto-detect epigraph pattern in plain text: a short quote followed by an author signature
-      if (!inEpigraph && !isAuthor && rawParas[pi + 1]) {
-        var nextP = rawParas[pi + 1].trim();
-        if (/^(?:[—–\-]\s*)?[А-ЯЁ][а-яёА-ЯЁ.\s]{1,35}$/.test(nextP) && pText.length < 320) {
-          inEpigraph = true;
-        }
-      } else if (inEpigraph && !isAuthor) {
-        if (/^(?:[—–\-]\s*)?[А-ЯЁ][а-яёА-ЯЁ.\s]{1,35}$/.test(pText)) {
-          isAuthor = true;
-        }
-      }
-
       var pType = isAuthor ? 'author' : (inEpigraph ? 'epigraph' : 'normal');
       var rawWords = pText.split(/\s+/);
       var prefix = '';

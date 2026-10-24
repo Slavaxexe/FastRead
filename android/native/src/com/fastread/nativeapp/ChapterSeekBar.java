@@ -106,7 +106,10 @@ public final class ChapterSeekBar extends SeekBar {
             // Draw bookmarks
             if (bookmarks != null && !bookmarks.isEmpty()) {
                 int bmH = dp(5f);
-                for (Integer bm : bookmarks) {
+                for (int i = 0; i < bookmarks.size(); i++) {
+                    Integer bmObj = bookmarks.get(i);
+                    if (bmObj == null) continue;
+                    int bm = bmObj;
                     if (bm < 0 || bm >= total) continue;
                     float ratio = (float) bm / (float) total;
                     float x = getPaddingLeft() + ratio * avail;

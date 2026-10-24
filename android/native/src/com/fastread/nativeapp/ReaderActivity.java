@@ -663,7 +663,7 @@ public final class ReaderActivity extends Activity {
             p.setColor(color);
             int left = x + dir * indent;
             int right = left + dir * stripeWidth;
-            c.drawRect(Math.min(left, right), top + 2, Math.max(left, right), bottom - 2, p);
+            c.drawRect(Math.min(left, right), top, Math.max(left, right), bottom, p);
             p.setStyle(oldStyle);
             p.setColor(oldColor);
         }
