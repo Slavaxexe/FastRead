@@ -650,18 +650,21 @@ public final class ReaderActivity extends Activity {
         transportPod.addView(fwd1, new LinearLayout.LayoutParams(dp(36), dp(42)));
         transportPod.addView(fwd10, new LinearLayout.LayoutParams(dp(40), dp(42)));
 
-        // Add to controls row with flexible space between groups
+        // Add to controls row: bookmark, snug gap, speed pod, flexible gap, transport pod, right margin spacer
         controls.addView(markButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
-        View spacer1 = new View(this);
-        controls.addView(spacer1, new LinearLayout.LayoutParams(0, -1, 1f));
+        View gap1 = new View(this);
+        controls.addView(gap1, new LinearLayout.LayoutParams(dp(10), -1));
 
         controls.addView(speedPod, new LinearLayout.LayoutParams(-2, -2));
 
-        View spacer2 = new View(this);
-        controls.addView(spacer2, new LinearLayout.LayoutParams(0, -1, 1f));
+        View spacerMid = new View(this);
+        controls.addView(spacerMid, new LinearLayout.LayoutParams(0, -1, 1f));
 
         controls.addView(transportPod, new LinearLayout.LayoutParams(-2, -2));
+
+        View spacerRight = new View(this);
+        controls.addView(spacerRight, new LinearLayout.LayoutParams(0, -1, 1.2f));
 
         root.addView(controls);
 
