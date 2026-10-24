@@ -112,15 +112,17 @@ public final class BookData {
                 int pLen = i - pStart + 1;
                 if (pLen >= 3 && pLen <= 55 && i + 1 < words.length) {
                     int nextEnd = i + 1;
-                    while (nextEnd < words.length && !ends[nextEnd]) nextEnd++;
-                    int nextLen = nextEnd - (i + 1) + 1;
-                    if (nextLen >= 1 && nextLen <= 6) {
-                        StringBuilder authorBuf = new StringBuilder();
-                        for (int k = i + 1; k <= nextEnd; k++) authorBuf.append(k == i + 1 ? "" : " ").append(words[k]);
-                        String authorLine = authorBuf.toString().trim();
-                        if (authorLine.matches("^(?:[—–-]\\s*)?[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$")) {
-                            for (int k = pStart; k <= i; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
-                            for (int k = i + 1; k <= nextEnd; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
+                    while (nextEnd < words.length - 1 && !ends[nextEnd]) nextEnd++;
+                    if (nextEnd < words.length) {
+                        int nextLen = nextEnd - (i + 1) + 1;
+                        if (nextLen >= 1 && nextLen <= 6) {
+                            StringBuilder authorBuf = new StringBuilder();
+                            for (int k = i + 1; k <= nextEnd && k < words.length; k++) authorBuf.append(k == i + 1 ? "" : " ").append(words[k]);
+                            String authorLine = authorBuf.toString().trim();
+                            if (authorLine.matches("^(?:[—–-]\\s*)?[А-ЯЁA-Z][а-яёa-zА-ЯЁA-Z.\\s]{1,40}$")) {
+                                for (int k = pStart; k <= i && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_EPIGRAPH;
+                                for (int k = i + 1; k <= nextEnd && k < words.length; k++) if (types[k] == TYPE_NORMAL) types[k] = TYPE_AUTHOR;
+                            }
                         }
                     }
                 }

@@ -85,6 +85,7 @@ public final class ChapterSeekBar extends SeekBar {
         if (bookData != null && bookData.chapters != null && bookData.words != null && bookData.words.length > 1) {
             int total = bookData.words.length;
             int avail = getWidth() - getPaddingLeft() - getPaddingRight();
+            if (avail <= 0) return;
             int cy = getHeight() / 2;
             int tickH = dp(16);
             float tickHalfW = dp(1.8f);

@@ -147,6 +147,7 @@ public final class ReaderActivity extends Activity {
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
             int bg = bookmarked ? Color.BLACK : Color.WHITE;
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(bg);
@@ -330,10 +331,8 @@ public final class ReaderActivity extends Activity {
         root.addView(bannerDivider, new LinearLayout.LayoutParams(-1, dp(1.5f)));
 
         // 3. Middle Reading Stage
-        FrameLayout stage = new FrameLayout(this);
         wordView = new WordView(this);
-        stage.addView(wordView, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1f));
+        root.addView(wordView, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Hint below stage
         TextView hint = new TextView(this);
