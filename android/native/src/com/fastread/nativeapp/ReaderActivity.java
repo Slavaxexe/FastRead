@@ -23,7 +23,7 @@ public final class ReaderActivity extends Activity {
     private static final String DEMO = "Привет! Это FastRead — скорочтение для Android.\n\n" +
         "Смотри на выделенную букву и не двигай взглядом. Каждое слово выравнивается по центру, поэтому глазу не нужно прыгать по строке.\n\n" +
         "Нажми на центр экрана или Пробел для старта и паузы. Тап у левого края перематывает назад на 10 слов, тап у правого края — вперёд.\n\n" +
-        "Кнопки громкости также управляют чтением. Встретил интересное место — жми закладку слева, чтобы сохранить его.";
+        "Кнопки громкости также управляют чтением. Встретил интересное место — жми закладку, чтобы сохранить его.";
 
     private final Handler handler = new Handler();
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -35,9 +35,14 @@ public final class ReaderActivity extends Activity {
     private PlaybackClock clock;
 
     private float density;
+    private LinearLayout root, headerView, progressRow, controlsView, speedRow, transportRow;
+    private View dividerView;
     private WordView wordView;
-    private TextView bannerView, positionView, remainingView, speedView, contextView;
-    private Button playButton, markButton;
+    private TextView bannerView, positionView, remainingView, speedView, contextView, logoText;
+    private View logoDot;
+    private Button booksBtn, addBtn, settingsBtn;
+    private VectorButton playButton, markButton, slowerBtn, fasterBtn, back10Btn, back1Btn, fwd1Btn, fwd10Btn;
+    private LinearLayout speedPod;
     private ChapterSeekBar progress;
     private ScrollView contextScroll;
     private FrameLayout contextCard;
@@ -45,6 +50,10 @@ public final class ReaderActivity extends Activity {
     private int loadGeneration;
     private long lastUi, lastSave;
     private volatile String lastSavedKey = "";
+
+    // Herman's color themes
+    private int themeBg, themePanel, themeSoft, themeLine, themeText, themeMuted, themeAccent, themeAccentSoft;
+    private String currentTheme = "dark";
 
     @Override
     public void onCreate(Bundle state) {
@@ -54,30 +63,275 @@ public final class ReaderActivity extends Activity {
         store = new BookStore(this);
 
         fullscreen();
-        buildUi();
+        loadThemeColors();
 
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(themeBg);
+
+        // 1. Header Bar (Brand Logo + Subtitle + Action Pills)
+        headerView = new LinearLayout(this);
+        headerView.setOrientation(LinearLayout.HORIZONTAL);
+        headerView.setGravity(Gravity.CENTER_VERTICAL);
+        headerView.setPadding(dp(16), dp(10), dp(16), dp(6));
+
+        // Brand: Red Dot + "FastRead"
+        LinearLayout brand = new LinearLayout(this);
+        brand.setOrientation(LinearLayout.HORIZONTAL);
+        brand.setGravity(Gravity.CENTER_VERTICAL);
+
+        logoDot = new View(this);
+        GradientDrawable dotBg = new GradientDrawable();
+        dotBg.setShape(GradientDrawable.OVAL);
+        dotBg.setColor(themeAccent);
+        logoDot.setBackgroundDrawable(dotBg);
+        brand.addView(logoDot, new LinearLayout.LayoutParams(dp(8), dp(8)));
+
+        View dotGap = new View(this);
+        brand.addView(dotGap, new LinearLayout.LayoutParams(dp(8), -1));
+
+        logoText = new TextView(this);
+        logoText.setText("FastRead");
+        logoText.setTextSize(16f);
+        logoText.setTextColor(themeText);
+        logoText.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        brand.addView(logoText);
+
+        headerView.addView(brand);
+
+        View headerSpacer = new View(this);
+        headerView.addView(headerSpacer, new LinearLayout.LayoutParams(0, -1, 1f));
+
+        booksBtn = makeHeaderButton("Книги", new View.OnClickListener() {
+            public void onClick(View v) { showBookList(); }
+        });
+        addBtn = makeHeaderButton("+ Книга", new View.OnClickListener() {
+            public void onClick(View v) { pickBook(); }
+        });
+        settingsBtn = makeHeaderButton("⚙", new View.OnClickListener() {
+            public void onClick(View v) { showSettings(); }
+        });
+
+        headerView.addView(booksBtn);
+        headerView.addView(new View(this), new LinearLayout.LayoutParams(dp(6), -1));
+        headerView.addView(addBtn);
+        headerView.addView(new View(this), new LinearLayout.LayoutParams(dp(6), -1));
+        headerView.addView(settingsBtn);
+
+        root.addView(headerView);
+
+        // 2. Book & Chapter Banner
+        bannerView = new TextView(this);
+        bannerView.setText("Инструкция");
+        bannerView.setTextSize(12.5f);
+        bannerView.setTextColor(themeMuted);
+        bannerView.setSingleLine(true);
+        bannerView.setEllipsize(TextUtils.TruncateAt.END);
+        bannerView.setPadding(dp(16), 0, dp(16), dp(6));
+        bannerView.setClickable(true);
+        bannerView.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { showChapterList(); }
+        });
+        root.addView(bannerView);
+
+        // 3. Stage (WordView)
+        wordView = new WordView(this);
+        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+        root.addView(wordView);
+
+        // 4. Context Card (Expanded on pause with book typography)
+        contextCard = new FrameLayout(this);
+        updateCardBackground();
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, 0, 1f);
+        cardParams.setMargins(dp(16), dp(4), dp(16), dp(8));
+        contextCard.setLayoutParams(cardParams);
+        contextCard.setVisibility(View.GONE);
+
+        contextScroll = new ScrollView(this);
+        contextScroll.setFillViewport(true);
+        contextView = new TextView(this);
+        contextView.setTextSize(preferences.getInt("contextSize", 19));
+        contextView.setTypeface(Typeface.SERIF);
+        contextView.setTextColor(themeText);
+        contextView.setLineSpacing(dp(3f), 1.25f);
+        contextView.setPadding(dp(16), dp(14), dp(16), dp(14));
+        if (Build.VERSION.SDK_INT >= 26) {
+            contextView.setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD);
+        }
+        contextView.setMovementMethod(LinkMovementMethod.getInstance());
+        contextScroll.addView(contextView);
+        contextCard.addView(contextScroll);
+        root.addView(contextCard);
+
+        // 5. Divider Line
+        dividerView = new View(this);
+        dividerView.setBackgroundColor(themeLine);
+        root.addView(dividerView, new LinearLayout.LayoutParams(-1, dp(1f)));
+
+        // 6. Progress Row: [ 20 / 46275 ] [━━━━━━●━━━━━] [ ≈ 15 мин ]
+        progressRow = new LinearLayout(this);
+        progressRow.setOrientation(LinearLayout.HORIZONTAL);
+        progressRow.setGravity(Gravity.CENTER_VERTICAL);
+        progressRow.setPadding(dp(16), dp(6), dp(16), dp(4));
+
+        positionView = new TextView(this);
+        positionView.setText("0 / 0");
+        positionView.setTextSize(12f);
+        positionView.setTextColor(themeMuted);
+        positionView.setTypeface(Typeface.MONOSPACE);
+        progressRow.addView(positionView);
+
+        progress = new ChapterSeekBar(this);
+        LinearLayout.LayoutParams progParams = new LinearLayout.LayoutParams(0, dp(32), 1f);
+        progParams.setMargins(dp(10), 0, dp(10), 0);
+        progress.setLayoutParams(progParams);
+        progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (fromUser && clock != null) seek(value);
+            }
+            public void onStartTrackingTouch(SeekBar bar) {}
+            public void onStopTrackingTouch(SeekBar bar) {}
+        });
+        progressRow.addView(progress);
+
+        remainingView = new TextView(this);
+        remainingView.setText("≈ 0 с");
+        remainingView.setTextSize(12f);
+        remainingView.setTextColor(themeMuted);
+        remainingView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
+        progressRow.addView(remainingView);
+
+        root.addView(progressRow);
+
+        // 7. Controls Container (TWO ROWS FOR SMARTPHONES)
+        controlsView = new LinearLayout(this);
+        controlsView.setOrientation(LinearLayout.VERTICAL);
+        controlsView.setPadding(dp(16), dp(4), dp(16), dp(14));
+
+        // ROW 1: Bookmark, Speed Pod, Stats Pill
+        speedRow = new LinearLayout(this);
+        speedRow.setOrientation(LinearLayout.HORIZONTAL);
+        speedRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        markButton = new VectorButton(this, density, VectorButton.TYPE_BOOKMARK);
+        markButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { toggleBookmark(); }
+        });
+        markButton.setOnLongClickListener(new View.OnLongClickListener() {
+            public boolean onLongClick(View v) { showBookmarks(); return true; }
+        });
+        speedRow.addView(markButton, new LinearLayout.LayoutParams(dp(42), dp(40)));
+
+        View speedSpacer1 = new View(this);
+        speedRow.addView(speedSpacer1, new LinearLayout.LayoutParams(0, -1, 1f));
+
+        // Speed Pod [ − 350 сл/м + ]
+        speedPod = new LinearLayout(this);
+        speedPod.setOrientation(LinearLayout.HORIZONTAL);
+        speedPod.setGravity(Gravity.CENTER_VERTICAL);
+        updateSpeedPodBackground();
+
+        slowerBtn = new VectorButton(this, density, VectorButton.TYPE_MINUS);
+        slowerBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { changeSpeed(-25); }
+        });
+
+        speedView = new TextView(this);
+        speedView.setText("300\nсл/м");
+        speedView.setTextSize(12.5f);
+        speedView.setGravity(Gravity.CENTER);
+        speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        speedView.setTextColor(themeText);
+        speedView.setPadding(dp(4), 0, dp(4), 0);
+
+        fasterBtn = new VectorButton(this, density, VectorButton.TYPE_PLUS);
+        fasterBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { changeSpeed(25); }
+        });
+
+        speedPod.addView(slowerBtn, new LinearLayout.LayoutParams(dp(36), dp(40)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(60), dp(40)));
+        speedPod.addView(fasterBtn, new LinearLayout.LayoutParams(dp(36), dp(40)));
+        speedRow.addView(speedPod, new LinearLayout.LayoutParams(-2, -2));
+
+        View speedSpacer2 = new View(this);
+        speedRow.addView(speedSpacer2, new LinearLayout.LayoutParams(0, -1, 1f));
+
+        // Right placeholder matching bookmark width for perfect center symmetry
+        View rightSymmetry = new View(this);
+        speedRow.addView(rightSymmetry, new LinearLayout.LayoutParams(dp(42), dp(40)));
+
+        controlsView.addView(speedRow);
+
+        View rowGap = new View(this);
+        controlsView.addView(rowGap, new LinearLayout.LayoutParams(-1, dp(10)));
+
+        // ROW 2: Main Playback Transport [ −10  ‹   ▶   ›  +10 ]
+        transportRow = new LinearLayout(this);
+        transportRow.setOrientation(LinearLayout.HORIZONTAL);
+        transportRow.setGravity(Gravity.CENTER);
+
+        back10Btn = new VectorButton(this, density, VectorButton.TYPE_BACK10);
+        back10Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() - 10); }
+        });
+
+        back1Btn = new VectorButton(this, density, VectorButton.TYPE_PREV);
+        back1Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() - 1); }
+        });
+
+        // 56dp Circular Hero Play Button
+        playButton = new VectorButton(this, density, VectorButton.TYPE_PLAY_PAUSE);
+        playButton.setCircular(true);
+        playButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { toggle(); }
+        });
+
+        fwd1Btn = new VectorButton(this, density, VectorButton.TYPE_NEXT);
+        fwd1Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() + 1); }
+        });
+
+        fwd10Btn = new VectorButton(this, density, VectorButton.TYPE_FWD10);
+        fwd10Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() + 10); }
+        });
+
+        transportRow.addView(back10Btn, new LinearLayout.LayoutParams(dp(46), dp(44)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
+        transportRow.addView(back1Btn, new LinearLayout.LayoutParams(dp(42), dp(44)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
+        transportRow.addView(playButton, new LinearLayout.LayoutParams(dp(56), dp(56)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
+        transportRow.addView(fwd1Btn, new LinearLayout.LayoutParams(dp(42), dp(44)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
+        transportRow.addView(fwd10Btn, new LinearLayout.LayoutParams(dp(46), dp(44)));
+
+        controlsView.addView(transportRow);
+
+        root.addView(controlsView);
+
+        setContentView(root);
+
+        // 8. Initialize Playback Engine
         clock = new PlaybackClock(new PlaybackClock.Scheduler() {
             public long now() { return SystemClock.uptimeMillis(); }
             public void post(Runnable task, long delay) { handler.postDelayed(task, delay); }
             public void cancel(Runnable task) { handler.removeCallbacks(task); }
         }, new PlaybackClock.Display() {
-            public void show(int index, long frameId) {
-                if (book == null || book.words.length == 0) return;
-                wordView.showWord(book.words[index], frameId);
-                if (!clock.playing() || SystemClock.uptimeMillis() - lastUi >= 1000) refreshUi();
-                if (clock.playing() && SystemClock.uptimeMillis() - lastSave >= 5000) saveProgress();
+            public void show(int index, long id) {
+                wordView.showWord(book.words[index], id);
+                refreshUi();
             }
             public void stopped(boolean end, boolean timeout) {
-                screen.stop(wordView);
                 wordView.setKeepScreenOn(false);
-                if (preferences.getBoolean("clearOnPause", false) && screen.canRefresh()) {
-                    screen.fullRefresh(wordView);
-                }
                 refreshUi();
                 showContext();
                 saveProgress();
+                setPlaybackDimming(false);
                 if (end) toast("Конец текста");
-                if (timeout) toast("Нет отрисовки: чтение остановлено без пропуска слова");
+                if (timeout) toast("Таймаут отрисовки");
             }
         });
 
@@ -90,7 +344,6 @@ public final class ReaderActivity extends Activity {
             }
         });
 
-        screen.configure(wordView);
         applySettings();
         loadDemo();
 
@@ -122,51 +375,53 @@ public final class ReaderActivity extends Activity {
         return Math.round(value * density);
     }
 
-    private StateListDrawable makeButtonDrawable(boolean isPrimary) {
-        int normalBg = isPrimary ? Color.BLACK : Color.WHITE;
-        int pressedBg = isPrimary ? Color.WHITE : Color.BLACK;
-        int strokeColor = Color.BLACK;
-        int strokeWidth = dp(1.5f);
-        int radius = dp(3.5f);
-
-        GradientDrawable normal = new GradientDrawable();
-        normal.setColor(normalBg);
-        normal.setStroke(strokeWidth, strokeColor);
-        normal.setCornerRadius(radius);
-
-        GradientDrawable pressed = new GradientDrawable();
-        pressed.setColor(pressedBg);
-        pressed.setStroke(strokeWidth, strokeColor);
-        pressed.setCornerRadius(radius);
-
-        StateListDrawable states = new StateListDrawable();
-        states.addState(new int[]{android.R.attr.state_pressed}, pressed);
-        states.addState(new int[]{}, normal);
-        return states;
+    private void loadThemeColors() {
+        currentTheme = preferences.getString("theme", "dark");
+        if ("light".equals(currentTheme)) {
+            themeBg = Color.parseColor("#f5f2ec");      // Warm Paper
+            themePanel = Color.parseColor("#ffffff");   // Pure White
+            themeSoft = Color.parseColor("#ebe7df");    // Button background
+            themeLine = Color.parseColor("#ddd8cd");    // Subtle border
+            themeText = Color.parseColor("#1c1c1e");    // Near black
+            themeMuted = Color.parseColor("#77736b");   // Muted secondary
+            themeAccent = Color.parseColor("#de2328");  // Rich Book Red
+            themeAccentSoft = Color.parseColor("#fceced");
+        } else if ("amoled".equals(currentTheme)) {
+            themeBg = Color.parseColor("#000000");      // AMOLED Black
+            themePanel = Color.parseColor("#121214");   // Deep surface
+            themeSoft = Color.parseColor("#1e1e22");    // Soft surface
+            themeLine = Color.parseColor("#28282c");    // Border
+            themeText = Color.parseColor("#ffffff");    // Crisp White
+            themeMuted = Color.parseColor("#9e9ea4");   // Gray
+            themeAccent = Color.parseColor("#ff4b4e");  // Neon Red
+            themeAccentSoft = Color.parseColor("#2a181a");
+        } else { // default dark
+            themeBg = Color.parseColor("#121315");      // Herman Dark
+            themePanel = Color.parseColor("#1a1b1e");   // Surface
+            themeSoft = Color.parseColor("#222327");    // Hover/Button
+            themeLine = Color.parseColor("#2c2e33");    // Border
+            themeText = Color.parseColor("#e9e6df");    // Warm White
+            themeMuted = Color.parseColor("#8a8c92");   // Gray
+            themeAccent = Color.parseColor("#ff4b4e");  // Vibrant Red
+            themeAccentSoft = Color.parseColor("#2a181a");
+        }
     }
 
-    private ColorStateList makeButtonTextColor(boolean isPrimary) {
-        int normal = isPrimary ? Color.WHITE : Color.BLACK;
-        int pressed = isPrimary ? Color.BLACK : Color.WHITE;
-        return new ColorStateList(
-            new int[][]{new int[]{android.R.attr.state_pressed}, new int[]{}},
-            new int[]{pressed, normal}
-        );
+    private void updateCardBackground() {
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(themePanel);
+        cardBg.setCornerRadius(dp(14));
+        cardBg.setStroke(dp(1.2f), themeLine);
+        contextCard.setBackgroundDrawable(cardBg);
     }
 
-    private Button makeFlatButton(String text, int minWidthDp, int heightDp, boolean isPrimary, View.OnClickListener onClick) {
-        Button btn = new Button(this);
-        btn.setText(text);
-        btn.setTextSize(14f);
-        btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        btn.setTextColor(makeButtonTextColor(isPrimary));
-        btn.setBackgroundDrawable(makeButtonDrawable(isPrimary));
-        btn.setMinWidth(dp(minWidthDp));
-        btn.setMinimumWidth(dp(minWidthDp));
-        btn.setPadding(dp(4), 0, dp(4), 0);
-        btn.setGravity(Gravity.CENTER);
-        btn.setOnClickListener(onClick);
-        return btn;
+    private void updateSpeedPodBackground() {
+        GradientDrawable speedBg = new GradientDrawable();
+        speedBg.setColor(themePanel);
+        speedBg.setCornerRadius(dp(10));
+        speedBg.setStroke(dp(1.2f), themeLine);
+        speedPod.setBackgroundDrawable(speedBg);
+        speedPod.setPadding(dp(2), 0, dp(2), 0);
     }
 
     private Button makeHeaderButton(String text, View.OnClickListener onClick) {
@@ -174,242 +429,89 @@ public final class ReaderActivity extends Activity {
         btn.setText(text);
         btn.setTextSize(12.5f);
         btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        btn.setTextColor(makeButtonTextColor(false));
-        btn.setBackgroundDrawable(makeButtonDrawable(false));
-        btn.setMinWidth(dp(64));
-        btn.setMinimumWidth(dp(64));
-        btn.setPadding(dp(8), 0, dp(8), 0);
         btn.setGravity(Gravity.CENTER);
+        btn.setPadding(dp(10), 0, dp(10), 0);
+
+        GradientDrawable norm = new GradientDrawable();
+        norm.setColor(themeSoft);
+        norm.setCornerRadius(dp(8));
+        norm.setStroke(dp(1f), themeLine);
+
+        GradientDrawable press = new GradientDrawable();
+        press.setColor(themeLine);
+        press.setCornerRadius(dp(8));
+        press.setStroke(dp(1f), themeLine);
+
+        StateListDrawable sld = new StateListDrawable();
+        sld.addState(new int[]{android.R.attr.state_pressed}, press);
+        sld.addState(new int[]{}, norm);
+        btn.setBackgroundDrawable(sld);
+        btn.setTextColor(themeText);
         btn.setOnClickListener(onClick);
         return btn;
     }
 
-    private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+    private void applySettings() {
+        loadThemeColors();
+        root.setBackgroundColor(themeBg);
+        wordView.configureTheme(currentTheme);
+        wordView.configure(
+            preferences.getInt("size", 48),
+            preferences.getString("font", "serif"),
+            preferences.getString("focusStyle", "box"),
+            preferences.getBoolean("orp", false),
+            "dark".equals(currentTheme) || "amoled".equals(currentTheme)
+        );
 
-        // 1. Top Header: [■ FastRead] ... [ Книги ] [ + Книга ] [ Настройки ]
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(10), dp(5), dp(10), dp(5));
+        int wpm = preferences.getInt("wpm", 300);
+        if (clock != null) {
+            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
+        }
+        speedView.setText(wpm + "\nсл/м");
+        speedView.setTextColor(themeText);
 
-        LinearLayout logoLayout = new LinearLayout(this);
-        logoLayout.setOrientation(LinearLayout.HORIZONTAL);
-        logoLayout.setGravity(Gravity.CENTER_VERTICAL);
+        progress.setThemeColors(themeLine, themeAccent, themeText, themeMuted);
 
-        View square = new View(this);
-        GradientDrawable sqDrawable = new GradientDrawable();
-        sqDrawable.setColor(Color.BLACK);
-        sqDrawable.setSize(dp(9), dp(9));
-        square.setBackgroundDrawable(sqDrawable);
-        LinearLayout.LayoutParams sqParams = new LinearLayout.LayoutParams(dp(9), dp(9));
-        sqParams.rightMargin = dp(7);
-        logoLayout.addView(square, sqParams);
+        // Update button colors
+        int buttonBg = themeSoft;
+        int buttonLine = themeLine;
+        markButton.setButtonColors(themeText, buttonBg, buttonLine, false);
+        slowerBtn.setButtonColors(themeText, Color.TRANSPARENT, Color.TRANSPARENT, false);
+        fasterBtn.setButtonColors(themeText, Color.TRANSPARENT, Color.TRANSPARENT, false);
 
-        TextView logoText = new TextView(this);
-        logoText.setText("FastRead");
-        logoText.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        logoText.setTextSize(16.5f);
-        logoText.setTextColor(Color.BLACK);
-        logoLayout.addView(logoText);
+        back10Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
+        back1Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
+        fwd1Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
+        fwd10Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
 
-        header.addView(logoLayout, new LinearLayout.LayoutParams(0, -2, 1f));
+        // Large 56dp Hero Play Button: in dark theme, cream circle with dark icon; in light theme, dark circle with light icon
+        playButton.setButtonColors("light".equals(currentTheme) ? Color.WHITE : Color.parseColor("#121315"),
+                                   "light".equals(currentTheme) ? Color.parseColor("#1c1c1e") : Color.parseColor("#e9e6df"),
+                                   themeAccent, true);
 
-        Button btnLib = makeHeaderButton("Книги", new View.OnClickListener() {
-            public void onClick(View v) { showLibrary(); }
-        });
-        Button btnAdd = makeHeaderButton("+ Книга", new View.OnClickListener() {
-            public void onClick(View v) { chooseBook(); }
-        });
-        Button btnSet = makeHeaderButton("Настройки", new View.OnClickListener() {
-            public void onClick(View v) { showSettings(); }
-        });
+        logoDot.setBackgroundColor(themeAccent);
+        GradientDrawable dotBg = new GradientDrawable();
+        dotBg.setShape(GradientDrawable.OVAL);
+        dotBg.setColor(themeAccent);
+        logoDot.setBackgroundDrawable(dotBg);
+        logoText.setTextColor(themeText);
+        bannerView.setTextColor(themeMuted);
+        dividerView.setBackgroundColor(themeLine);
+        positionView.setTextColor(themeMuted);
+        remainingView.setTextColor(themeMuted);
 
-        LinearLayout.LayoutParams hBtnParams = new LinearLayout.LayoutParams(-2, dp(38));
-        hBtnParams.leftMargin = dp(4);
-        header.addView(btnLib, hBtnParams);
-        header.addView(btnAdd, hBtnParams);
-        header.addView(btnSet, hBtnParams);
+        updateCardBackground();
+        updateSpeedPodBackground();
+        contextView.setTextColor(themeText);
+        contextView.setTextSize(preferences.getInt("contextSize", 19));
+    }
 
-        root.addView(header);
-
-        // Header divider (2dp solid black)
-        View headerDivider = new View(this);
-        headerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(headerDivider, new LinearLayout.LayoutParams(-1, dp(2)));
-
-        // 2. Book & Chapter Banner: 📖 <Book Title> • <Chapter>
-        bannerView = new TextView(this);
-        bannerView.setPadding(dp(12), dp(6), dp(12), dp(6));
-        bannerView.setSingleLine(true);
-        bannerView.setEllipsize(TextUtils.TruncateAt.END);
-        bannerView.setBackgroundColor(Color.WHITE);
-        bannerView.setTextColor(Color.BLACK);
-        bannerView.setTextSize(13.5f);
-        bannerView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        bannerView.setText("📖 Инструкция");
-        bannerView.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { showChapters(); }
-        });
-        root.addView(bannerView);
-
-        View bannerDivider = new View(this);
-        bannerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(bannerDivider, new LinearLayout.LayoutParams(-1, dp(1.5f)));
-
-        // 3. Middle Reading Stage
-        FrameLayout stage = new FrameLayout(this);
-        wordView = new WordView(this);
-        stage.addView(wordView, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-        // Hint below stage
-        TextView hint = new TextView(this);
-        hint.setText("Тап: слева −10 · центр старт / пауза · справа +10");
-        hint.setTextSize(11.5f);
-        hint.setTextColor(Color.parseColor("#444444"));
-        hint.setGravity(Gravity.CENTER);
-        hint.setPadding(0, dp(4), 0, dp(4));
-        root.addView(hint);
-
-        // 4. Paused Context Card (visible on pause)
-        contextCard = new FrameLayout(this);
-        GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setColor(Color.WHITE);
-        cardBg.setStroke(dp(2), Color.BLACK);
-        cardBg.setCornerRadius(dp(3));
-        contextCard.setBackgroundDrawable(cardBg);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, dp(175));
-        cardParams.setMargins(dp(10), dp(4), dp(10), dp(4));
-        contextCard.setLayoutParams(cardParams);
-
-        contextScroll = new ScrollView(this);
-        contextView = new TextView(this);
-        contextView.setTextSize(18f);
-        contextView.setTypeface(Typeface.SERIF);
-        contextView.setTextColor(Color.BLACK);
-        contextView.setLineSpacing(dp(4), 1.25f);
-        contextView.setPadding(dp(12), dp(8), dp(12), dp(8));
-        contextView.setMovementMethod(LinkMovementMethod.getInstance());
-        contextScroll.addView(contextView);
-        contextCard.addView(contextScroll);
-        root.addView(contextCard);
-
-        // 5. Footer divider (2dp solid black)
-        View footerDivider = new View(this);
-        footerDivider.setBackgroundColor(Color.BLACK);
-        root.addView(footerDivider, new LinearLayout.LayoutParams(-1, dp(2)));
-
-        // 6. Progress Row: [11 / 71] [━━━━━━●━━━━] [≈ 14 с]
-        LinearLayout progressRow = new LinearLayout(this);
-        progressRow.setOrientation(LinearLayout.HORIZONTAL);
-        progressRow.setGravity(Gravity.CENTER_VERTICAL);
-        progressRow.setPadding(dp(10), dp(4), dp(10), dp(2));
-
-        positionView = new TextView(this);
-        positionView.setText("0 / 0");
-        positionView.setTextSize(12.5f);
-        positionView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        positionView.setTextColor(Color.BLACK);
-        progressRow.addView(positionView, new LinearLayout.LayoutParams(-2, -2));
-
-        progress = new ChapterSeekBar(this);
-        progress.setPadding(dp(8), 0, dp(8), 0);
-        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(36), 1f));
-
-        remainingView = new TextView(this);
-        remainingView.setText("—");
-        remainingView.setTextSize(12.5f);
-        remainingView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        remainingView.setTextColor(Color.BLACK);
-        progressRow.addView(remainingView, new LinearLayout.LayoutParams(-2, -2));
-
-        root.addView(progressRow);
-
-        progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onStartTrackingTouch(SeekBar bar) { if (clock != null) clock.pause(); }
-            public void onStopTrackingTouch(SeekBar bar) { if (clock != null) seek(bar.getProgress()); }
-            public void onProgressChanged(SeekBar bar, int value, boolean user) {
-                if (user && !updatingProgress && clock != null) seek(value);
-            }
-        });
-
-        // 7. Single-row Controls Bar:
-        // [★] [−] 300 сл/м [+]      [−10] [‹] [ ▶ ] [›] [+10]
-        LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(LinearLayout.HORIZONTAL);
-        controls.setGravity(Gravity.CENTER_VERTICAL);
-        controls.setPadding(dp(6), dp(4), dp(6), dp(8));
-
-        markButton = makeFlatButton("☆", 38, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { toggleBookmark(); }
-        });
-        markButton.setOnLongClickListener(new View.OnLongClickListener() {
-            public boolean onLongClick(View v) { showBookmarks(); return true; }
-        });
-
-        Button slower = makeFlatButton("−", 36, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { changeSpeed(-25); }
-        });
-
-        speedView = new TextView(this);
-        speedView.setText("300\nсл/м");
-        speedView.setTextSize(12.5f);
-        speedView.setGravity(Gravity.CENTER);
-        speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        speedView.setTextColor(Color.BLACK);
-        speedView.setPadding(dp(2), 0, dp(2), 0);
-
-        Button faster = makeFlatButton("+", 36, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { changeSpeed(25); }
-        });
-
-        View spacer = new View(this);
-
-        Button back10 = makeFlatButton("−10", 40, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() - 10); }
-        });
-        Button back1 = makeFlatButton("‹", 32, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() - 1); }
-        });
-        playButton = makeFlatButton("▶", 58, 50, true, new View.OnClickListener() {
-            public void onClick(View v) { toggle(); }
-        });
-        Button fwd1 = makeFlatButton("›", 32, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() + 1); }
-        });
-        Button fwd10 = makeFlatButton("+10", 40, 46, false, new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() + 10); }
-        });
-
-        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
-        btnParams.setMargins(dp(1.5f), 0, dp(1.5f), 0);
-
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(0, dp(50), 1.5f);
-        playParams.setMargins(dp(3), 0, dp(3), 0);
-
-        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(54), dp(46));
-        speedParams.setMargins(dp(1.5f), 0, dp(1.5f), 0);
-
-        controls.addView(markButton, btnParams);
-        controls.addView(slower, btnParams);
-        controls.addView(speedView, speedParams);
-        controls.addView(faster, btnParams);
-
-        // Thin spacer between speed and transport
-        controls.addView(spacer, new LinearLayout.LayoutParams(dp(4), -1));
-
-        controls.addView(back10, btnParams);
-        controls.addView(back1, btnParams);
-        controls.addView(playButton, playParams);
-        controls.addView(fwd1, btnParams);
-        controls.addView(fwd10, btnParams);
-
-        root.addView(controls);
-
-        setContentView(root);
+    private void setPlaybackDimming(boolean playing) {
+        float alpha = playing ? 0.16f : 1.0f;
+        headerView.animate().alpha(alpha).setDuration(250).start();
+        dividerView.animate().alpha(alpha).setDuration(250).start();
+        progressRow.animate().alpha(alpha).setDuration(250).start();
+        controlsView.animate().alpha(alpha).setDuration(250).start();
     }
 
     private void fullscreen() {
@@ -417,22 +519,6 @@ public final class ReaderActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         );
-    }
-
-    private void applySettings() {
-        wordView.setMonochrome(ScreenController.BOOX && preferences.getBoolean("monoInk", true));
-        wordView.configure(
-            preferences.getInt("size", 46),
-            preferences.getString("font", "serif"),
-            preferences.getString("focusStyle", "box"),
-            preferences.getBoolean("orp", false),
-            preferences.getBoolean("dark", false)
-        );
-        int wpm = preferences.getInt("wpm", 300);
-        if (clock != null) {
-            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
-        }
-        speedView.setText(wpm + "\nсл/м");
     }
 
     private void loadDemo() {
@@ -481,25 +567,28 @@ public final class ReaderActivity extends Activity {
         progress.setProgress(index);
         updatingProgress = false;
 
-        playButton.setText(clock.playing() ? "❚❚" : "▶");
+        playButton.setPlaying(clock.playing());
 
         boolean isMarked = record.bookmarks.contains(index);
-        markButton.setText(isMarked ? "★" : "☆");
-        markButton.setTextColor(makeButtonTextColor(isMarked));
-        markButton.setBackgroundDrawable(makeButtonDrawable(isMarked));
+        markButton.setBookmarkState(isMarked, themeAccent, themeText);
 
         speedView.setText(wpm + "\nсл/м");
     }
 
     public static class BoxWordSpan extends ReplacementSpan {
         private final float density;
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int textColor;
 
-        public BoxWordSpan(float density) {
+        public BoxWordSpan(float density, int fillColor, int borderColor, int textColor) {
             this.density = density;
+            this.textColor = textColor;
+            fillPaint.setStyle(Paint.Style.FILL);
+            fillPaint.setColor(fillColor);
             borderPaint.setStyle(Paint.Style.STROKE);
-            borderPaint.setStrokeWidth(2f * density);
-            borderPaint.setColor(Color.BLACK);
+            borderPaint.setStrokeWidth(1.8f * density);
+            borderPaint.setColor(borderColor);
         }
 
         @Override
@@ -513,31 +602,104 @@ public final class ReaderActivity extends Activity {
             paint.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
             float textWidth = paint.measureText(text, start, end);
             RectF rect = new RectF(x + 2 * density, top + 2 * density, x + textWidth + 10 * density, bottom - 2 * density);
-            canvas.drawRoundRect(rect, 3 * density, 3 * density, borderPaint);
+            canvas.drawRoundRect(rect, 4 * density, 4 * density, fillPaint);
+            canvas.drawRoundRect(rect, 4 * density, 4 * density, borderPaint);
+            int oldColor = paint.getColor();
+            paint.setColor(textColor);
             canvas.drawText(text, start, end, x + 6 * density, y, paint);
+            paint.setColor(oldColor);
+        }
+    }
+
+    public static final class EpigraphSpan implements LeadingMarginSpan {
+        private final int indent;
+        private final int stripeWidth;
+        private final int gap;
+        private final int color;
+
+        public EpigraphSpan(int indent, int stripeWidth, int gap, int color) {
+            this.indent = indent;
+            this.stripeWidth = stripeWidth;
+            this.gap = gap;
+            this.color = color;
+        }
+
+        @Override
+        public int getLeadingMargin(boolean first) {
+            return indent + stripeWidth + gap;
+        }
+
+        @Override
+        public void drawLeadingMargin(Canvas c, Paint p, int x, int dir, int top, int baseline, int bottom,
+                                      CharSequence text, int start, int end, boolean first, Layout layout) {
+            Paint.Style oldStyle = p.getStyle();
+            int oldColor = p.getColor();
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(color);
+            int left = x + dir * indent;
+            int right = left + dir * stripeWidth;
+            c.drawRect(Math.min(left, right), top + 2, Math.max(left, right), bottom - 2, p);
+            p.setStyle(oldStyle);
+            p.setColor(oldColor);
         }
     }
 
     private void showContext() {
         if (book == null || clock.playing() || !preferences.getBoolean("context", true)) {
             contextCard.setVisibility(View.GONE);
+            wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             return;
         }
-        final int current = clock.index();
-        SpannableStringBuilder builder = new SpannableStringBuilder();
-        int startIdx = Math.max(0, current - 35);
-        int endIdx = Math.min(book.words.length, current + 55);
+        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(110)));
+        contextCard.setVisibility(View.VISIBLE);
 
+        final int current = clock.index();
+        final SpannableStringBuilder builder = new SpannableStringBuilder();
+        int startIdx = Math.max(0, current - 120);
+        int endIdx = Math.min(book.words.length, current + 160);
+
+        int currentWordStartInSpan = -1;
+        int pStartSpan = 0;
         boolean isParagraphStart = true;
+        byte currentParagraphType = BookData.TYPE_NORMAL;
+
         for (int i = startIdx; i < endIdx; i++) {
             final int position = i;
+            byte type = (book.types != null && i < book.types.length) ? book.types[i] : BookData.TYPE_NORMAL;
+
             if (isParagraphStart) {
-                builder.append("   "); // paragraph indent
+                pStartSpan = builder.length();
+                currentParagraphType = type;
+                if (type == BookData.TYPE_EPIGRAPH) {
+                    if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
+                        builder.append("\n");
+                    }
+                    if (!book.words[i].matches("^[«“\"'].*")) {
+                        builder.append("“ ");
+                    }
+                } else if (type == BookData.TYPE_AUTHOR) {
+                    if (!book.words[i].matches("^[—–-].*")) {
+                        builder.append("— ");
+                    }
+                } else if (type == BookData.TYPE_CHAPTER) {
+                    if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
+                        builder.append("\n");
+                    }
+                } else {
+                    // Book paragraph first line indent
+                    builder.append("\u00A0\u00A0\u00A0\u00A0");
+                }
                 isParagraphStart = false;
             }
+
             int s = builder.length();
             builder.append(book.words[i]);
             int e = builder.length();
+
+            if (i == current) {
+                currentWordStartInSpan = s;
+                builder.setSpan(new BoxWordSpan(density, themeAccentSoft, themeAccent, themeText), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
 
             builder.setSpan(new ClickableSpan() {
                 @Override
@@ -546,34 +708,114 @@ public final class ReaderActivity extends Activity {
                 }
                 @Override
                 public void updateDrawState(android.text.TextPaint ds) {
-                    ds.setColor(Color.BLACK);
+                    ds.setColor(themeText);
                     ds.setUnderlineText(false);
                 }
             }, s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 
-            if (i == current) {
-                builder.setSpan(new BoxWordSpan(density), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-
-            if (book.paragraphEnds[i]) {
-                builder.append("\n\n");
+            if (book.paragraphEnds[i] || i == endIdx - 1) {
+                int pEndSpan = builder.length();
+                if (currentParagraphType == BookData.TYPE_CHAPTER) {
+                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new RelativeSizeSpan(1.22f), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n\n");
+                } else if (currentParagraphType == BookData.TYPE_EPIGRAPH) {
+                    builder.setSpan(new EpigraphSpan(dp(24), dp(2.8f), dp(10), themeAccent), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n");
+                } else if (currentParagraphType == BookData.TYPE_AUTHOR) {
+                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n\n");
+                } else {
+                    builder.append("\n");
+                }
                 isParagraphStart = true;
             } else {
                 builder.append(" ");
             }
         }
         contextView.setText(builder);
-        contextCard.setVisibility(View.VISIBLE);
+
+        final int targetOffset = currentWordStartInSpan;
+        contextView.post(new Runnable() {
+            @Override
+            public void run() {
+                Layout layout = contextView.getLayout();
+                if (layout != null) {
+                    int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
+                    if (availableWidth > 0) {
+                        CharSequence text = builder;
+                        int lineCount = layout.getLineCount();
+                        boolean modified = false;
+
+                        for (int l = 0; l < lineCount; l++) {
+                            int lineStart = layout.getLineStart(l);
+                            int lineEnd = layout.getLineEnd(l);
+                            if (lineEnd <= lineStart) continue;
+
+                            char lastChar = text.charAt(lineEnd - 1);
+                            if (lastChar == '\n' || lastChar == '\r') continue;
+                            if (lineEnd < text.length() && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
+
+                            Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
+                            if (alignSpans != null && alignSpans.length > 0) continue;
+                            Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
+                            if (epigraphSpans != null && epigraphSpans.length > 0) continue;
+
+                            float lineWidth = layout.getLineWidth(l);
+                            float emptySpace = availableWidth - lineWidth;
+
+                            if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
+                                int spaceCount = 0;
+                                for (int ci = lineStart; ci < lineEnd; ci++) {
+                                    if (text.charAt(ci) == ' ') spaceCount++;
+                                }
+                                if (spaceCount >= 1) {
+                                    float spaceWidth = contextView.getPaint().measureText(" ");
+                                    float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
+                                    float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
+                                    if (scaleX > 1.05f && scaleX <= 2.8f) {
+                                        for (int ci = lineStart; ci < lineEnd; ci++) {
+                                            if (text.charAt(ci) == ' ') {
+                                                builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                                modified = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (modified) {
+                            contextView.setText(builder);
+                        }
+                    }
+                }
+
+                if (targetOffset >= 0 && targetOffset < contextView.getText().length()) {
+                    Layout lyt = contextView.getLayout();
+                    if (lyt != null) {
+                        int line = lyt.getLineForOffset(targetOffset);
+                        int lineTop = lyt.getLineTop(line);
+                        int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
+                        contextScroll.smoothScrollTo(0, targetY);
+                    }
+                }
+            }
+        });
     }
 
     private void toggle() {
         if (busy || book == null) return;
         if (clock.playing()) {
             clock.pause();
+            setPlaybackDimming(false);
         } else {
             contextCard.setVisibility(View.GONE);
-            screen.start(wordView, preferences.getBoolean("autoA2", true));
+            wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             wordView.setKeepScreenOn(true);
+            setPlaybackDimming(true);
             clock.play();
             refreshUi();
         }
@@ -609,452 +851,313 @@ public final class ReaderActivity extends Activity {
         if (!worker.isShutdown()) {
             worker.execute(new Runnable() {
                 public void run() {
-                    try {
-                        store.save(snapshot);
-                    } catch (Exception e) {
-                        lastSavedKey = "";
-                    }
+                    try { store.save(snapshot); } catch (Exception ignored) {}
                 }
             });
         }
     }
 
-    private void chooseBook() {
-        if (busy) return;
-        clock.pause();
-        new AlertDialog.Builder(this)
-            .setTitle("Открыть книгу")
-            .setItems(new String[]{"📂 Выбрать через проводник", "📁 Память устройства (Внутренняя память / SD)"}, new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface dialog, int which) {
-                    if (which == 0) systemPicker();
-                    else storagePicker();
-                }
-            }).show();
-    }
-
-    private void systemPicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("*/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        try {
-            startActivityForResult(intent, OPEN_BOOK);
-        } catch (ActivityNotFoundException e) {
-            storagePicker();
+    private void toggleBookmark() {
+        if (record == null) return;
+        int index = clock.index();
+        if (record.bookmarks.contains(index)) {
+            record.bookmarks.remove(Integer.valueOf(index));
+            toast("Закладка удалена");
+        } else {
+            record.bookmarks.add(index);
+            Collections.sort(record.bookmarks);
+            toast("Закладка сохранена");
         }
+        progress.setBookData(book, record.bookmarks);
+        refreshUi();
+        saveProgress();
     }
 
-    private void storagePicker() {
-        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 11);
+    private void showBookmarks() {
+        if (record == null || record.bookmarks.isEmpty()) {
+            toast("Нет сохранённых закладок");
             return;
         }
-        browse(Environment.getExternalStorageDirectory());
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
-        super.onRequestPermissionsResult(request, permissions, results);
-        if (request == 11 && results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            browse(Environment.getExternalStorageDirectory());
+        String[] items = new String[record.bookmarks.size()];
+        for (int i = 0; i < items.length; i++) {
+            int pos = record.bookmarks.get(i);
+            String snippet = "";
+            if (book != null && pos < book.words.length) {
+                StringBuilder sb = new StringBuilder();
+                int end = Math.min(book.words.length, pos + 5);
+                for (int k = pos; k < end; k++) sb.append(book.words[k]).append(" ");
+                snippet = " — \"" + sb.toString().trim() + "...\"";
+            }
+            items[i] = (pos + 1) + " / " + record.total + snippet;
         }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Закладки")
+            .setItems(items, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    seek(record.bookmarks.get(which));
+                }
+            })
+            .setPositiveButton("Закрыть", null)
+            .show();
     }
 
-    private void browse(final File directory) {
-        worker.execute(new Runnable() {
-            public void run() {
-                File[] found = directory.listFiles(new FileFilter() {
-                    public boolean accept(File file) {
-                        return !file.getName().startsWith(".") &&
-                            (file.isDirectory() || file.getName().toLowerCase(Locale.ROOT).matches(".*\\.(epub|fb2|txt|md|html?|json)"));
-                    }
-                });
-                final File[] entries = found == null ? new File[0] : found;
-                Arrays.sort(entries, new Comparator<File>() {
-                    public int compare(File a, File b) {
-                        if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
-                        return a.getName().compareToIgnoreCase(b.getName());
-                    }
-                });
-                onUi(new Runnable() {
-                    public void run() {
-                        String[] names = new String[entries.length];
-                        for (int i = 0; i < names.length; i++) {
-                            names[i] = (entries[i].isDirectory() ? "📁 " : "📄 ") + entries[i].getName();
-                        }
-                        new AlertDialog.Builder(ReaderActivity.this)
-                            .setTitle(directory.getAbsolutePath())
-                            .setItems(names, new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int which) {
-                                    if (entries[which].isDirectory()) browse(entries[which]);
-                                    else importUri(Uri.fromFile(entries[which]));
-                                }
-                            })
-                            .setNegativeButton("Отмена", null)
-                            .setNeutralButton("Наверх", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int which) {
-                                    File parent = directory.getParentFile();
-                                    if (parent != null) browse(parent);
-                                }
-                            }).show();
-                    }
-                });
-            }
-        });
-    }
-
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        super.onActivityResult(request, result, data);
-        if (request == OPEN_BOOK && result == RESULT_OK && data != null && data.getData() != null) {
-            importUri(data.getData());
+    private void showChapterList() {
+        if (book == null || book.chapters == null || book.chapters.length == 0) {
+            toast("Оглавление не найдено");
+            return;
         }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        if (intent.getData() != null) importUri(intent.getData());
-    }
-
-    private void importUri(final Uri uri) {
-        if (busy) return;
-        clock.pause();
-        busy = true;
-        bannerView.setText("📖 Импортирую книгу…");
-        final int generation = ++loadGeneration;
-        worker.execute(new Runnable() {
-            public void run() {
-                File temporary = null;
-                try {
-                    String name = uri.getLastPathSegment();
-                    if (name == null) name = "Книга.txt";
-                    if (!"file".equalsIgnoreCase(uri.getScheme())) {
-                        Cursor cursor = null;
-                        try {
-                            cursor = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null);
-                            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
-                        } catch (Exception ignored) {}
-                        finally { if (cursor != null) cursor.close(); }
-                    }
-                    temporary = File.createTempFile("import-", ".book", getCacheDir());
-                    InputStream input = getContentResolver().openInputStream(uri);
-                    if (input == null) throw new IOException("Файл недоступен");
-                    OutputStream output = new FileOutputStream(temporary);
-                    try {
-                        byte[] buffer = new byte[16384];
-                        int n;
-                        long total = 0;
-                        while ((n = input.read(buffer)) != -1) {
-                            total += n;
-                            if (total > 40L * 1024 * 1024) throw new IOException("Файл больше 40 МБ");
-                            output.write(buffer, 0, n);
-                        }
-                    } finally {
-                        try { input.close(); } finally { output.close(); }
-                    }
-                    BookParser.Parsed parsed = BookParser.parse(temporary, name);
-                    final BookData data = BookData.tokenize(parsed.text, parsed.chapters);
-                    if (data.words.length == 0) throw new IOException("Не найдено слов");
-                    final BookStore.Record imported = store.add(parsed, data);
-                    onUi(new Runnable() {
-                        public void run() {
-                            if (generation != loadGeneration) return;
-                            busy = false;
-                            install(imported, data);
-                            toast("Книга загружена: " + data.words.length + " слов");
-                        }
-                    });
-                } catch (final Exception e) {
-                    onUi(new Runnable() {
-                        public void run() {
-                            if (generation != loadGeneration) return;
-                            busy = false;
-                            refreshUi();
-                            toast("Не удалось открыть: " + e.getMessage());
-                        }
-                    });
-                } finally {
-                    if (temporary != null) temporary.delete();
+        String[] items = new String[book.chapters.length];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = book.chapters[i].title;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Оглавление")
+            .setItems(items, new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    seek(book.chapters[which].start);
                 }
-            }
-        });
+            })
+            .setPositiveButton("Закрыть", null)
+            .show();
     }
 
-    private void openRecord(final BookStore.Record next) {
-        if (busy) return;
-        clock.pause();
-        saveProgress();
-        busy = true;
-        bannerView.setText("📖 Открываю «" + next.title + "»…");
-        final int generation = ++loadGeneration;
-        worker.execute(new Runnable() {
-            public void run() {
-                try {
-                    final BookData loaded = store.load(next);
-                    onUi(new Runnable() {
-                        public void run() {
-                            if (generation != loadGeneration) return;
-                            busy = false;
-                            install(next, loaded);
-                        }
-                    });
-                } catch (final Exception e) {
-                    onUi(new Runnable() {
-                        public void run() {
-                            if (generation != loadGeneration) return;
-                            busy = false;
-                            refreshUi();
-                            toast(e.getMessage());
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    private void showLibrary() {
-        if (busy) return;
-        clock.pause();
-        saveProgress();
+    private void showBookList() {
         worker.execute(new Runnable() {
             public void run() {
                 final ArrayList<BookStore.Record> records = store.list();
                 onUi(new Runnable() {
                     public void run() {
+                        if (records.isEmpty()) {
+                            toast("Библиотека пуста. Добавьте книгу.");
+                            return;
+                        }
                         String[] names = new String[records.size()];
                         for (int i = 0; i < names.length; i++) {
                             BookStore.Record r = records.get(i);
                             int pct = r.total > 0 ? (int) Math.round(100.0 * r.pos / r.total) : 0;
-                            names[i] = r.title + "\n" + (r.pos + 1) + " / " + r.total + " · " + pct + "%";
+                            names[i] = r.title + " (" + pct + "%)";
                         }
-                        ListView list = new ListView(ReaderActivity.this);
-                        list.setAdapter(new ArrayAdapter<String>(ReaderActivity.this, android.R.layout.simple_list_item_1, names));
-                        final AlertDialog dialog = new AlertDialog.Builder(ReaderActivity.this)
-                            .setTitle(names.length == 0 ? "Библиотека пуста" : "📚 Мои книги (долгое нажатие — удалить)")
-                            .setView(list)
+                        new AlertDialog.Builder(ReaderActivity.this)
+                            .setTitle("Мои книги")
+                            .setItems(names, new DialogInterface.OnClickListener() {
+                                public void onClick(DialogInterface dialog, int which) {
+                                    openRecord(records.get(which));
+                                }
+                            })
                             .setNegativeButton("Закрыть", null)
-                            .setNeutralButton("Инструкция", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface d, int which) { loadDemo(); }
-                            }).create();
-
-                        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                            public void onItemClick(AdapterView<?> p, View v, int index, long id) {
-                                dialog.dismiss();
-                                openRecord(records.get(index));
-                            }
-                        });
-                        list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-                            public boolean onItemLongClick(AdapterView<?> p, View v, final int index, long id) {
-                                new AlertDialog.Builder(ReaderActivity.this)
-                                    .setMessage("Удалить «" + records.get(index).title + "»?")
-                                    .setNegativeButton("Отмена", null)
-                                    .setPositiveButton("Удалить", new DialogInterface.OnClickListener() {
-                                        public void onClick(DialogInterface d, int which) {
-                                            final BookStore.Record removed = records.get(index);
-                                            dialog.dismiss();
-                                            if (record.id.equals(removed.id)) {
-                                                clock.pause();
-                                                record = null;
-                                                book = null;
-                                                loadDemo();
-                                                preferences.edit().remove("last").apply();
-                                            }
-                                            worker.execute(new Runnable() {
-                                                public void run() { store.delete(removed); }
-                                            });
-                                        }
-                                    }).show();
-                                return true;
-                            }
-                        });
-                        dialog.show();
+                            .show();
                     }
                 });
             }
         });
     }
 
-    private void toggleBookmark() {
-        if (record == null || book == null) return;
-        Integer index = clock.index();
-        if (record.bookmarks.contains(index)) {
-            record.bookmarks.remove(index);
-            toast("Закладка удалена");
-        } else {
-            record.bookmarks.add(index);
-            Collections.sort(record.bookmarks);
-            toast("Закладка добавлена (слово " + (index + 1) + ")");
-        }
-        lastSavedKey = "";
-        saveProgress();
-        progress.setBookData(book, record.bookmarks);
-        refreshUi();
-    }
-
-    private void showBookmarks() {
-        if (record == null || record.bookmarks.isEmpty()) {
-            toast("Закладок пока нет");
-            return;
-        }
-        clock.pause();
-        final ArrayList<Integer> marks = new ArrayList<Integer>(record.bookmarks);
-        String[] names = new String[marks.size()];
-        for (int i = 0; i < names.length; i++) {
-            int index = marks.get(i);
-            names[i] = "Слово " + (index + 1) + ": " + (index < book.words.length ? book.words[index] : "");
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("★ Закладки в этой книге")
-            .setItems(names, new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface dialog, int which) {
-                    seek(marks.get(which));
+    private void openRecord(final BookStore.Record r) {
+        worker.execute(new Runnable() {
+            public void run() {
+                try {
+                    final BookData data = store.load(r);
+                    onUi(new Runnable() {
+                        public void run() {
+                            install(r, data);
+                        }
+                    });
+                } catch (final Exception e) {
+                    onUi(new Runnable() {
+                        public void run() { toast("Ошибка открытия: " + e.getMessage()); }
+                    });
                 }
-            }).show();
-    }
-
-    private void showChapters() {
-        if (book == null || book.chapters.length == 0) {
-            toast("В этом тексте нет глав");
-            return;
-        }
-        clock.pause();
-        String[] names = new String[book.chapters.length];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = (i + 1) + ". " + book.chapters[i].title;
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("📖 Оглавление")
-            .setItems(names, new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int which) {
-                    seek(book.chapters[which].start);
-                }
-            }).show();
-    }
-
-    private CheckBox check(LinearLayout box, String label, String key, boolean defaultValue) {
-        CheckBox check = new CheckBox(this);
-        check.setText(label);
-        check.setTextSize(14f);
-        check.setTextColor(Color.BLACK);
-        check.setChecked(preferences.getBoolean(key, defaultValue));
-        box.addView(check);
-        return check;
-    }
-
-    private SeekBar settingBar(LinearLayout box, final String label, int max, int progressVal, final int step, final int offset, final String suffix) {
-        final TextView value = new TextView(this);
-        value.setText(label + (offset + progressVal * step) + suffix);
-        value.setTextSize(14.5f);
-        value.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        value.setTextColor(Color.BLACK);
-        value.setPadding(0, dp(4), 0, dp(2));
-        box.addView(value);
-
-        SeekBar bar = new SeekBar(this);
-        bar.setMax(max);
-        bar.setProgress(progressVal);
-        box.addView(bar);
-
-        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onStartTrackingTouch(SeekBar b) {}
-            public void onStopTrackingTouch(SeekBar b) {}
-            public void onProgressChanged(SeekBar b, int p, boolean user) {
-                value.setText(label + (offset + p * step) + suffix);
             }
         });
-        return bar;
     }
 
-    private Spinner spinner(LinearLayout box, String title, String[] values, int selected) {
-        TextView tv = new TextView(this);
-        tv.setText(title);
-        tv.setTextSize(14.5f);
-        tv.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        tv.setTextColor(Color.BLACK);
-        tv.setPadding(0, dp(6), 0, dp(2));
-        box.addView(tv);
+    private void pickBook() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Выберите книгу"), OPEN_BOOK);
+        } catch (Exception e) {
+            toast("Файловый менеджер не найден");
+        }
+    }
 
-        Spinner spinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setSelection(selected);
-        box.addView(spinner);
-        return spinner;
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == OPEN_BOOK && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            importUri(data.getData());
+        }
+    }
+
+    private void importUri(final Uri uri) {
+        worker.execute(new Runnable() {
+            public void run() {
+                try {
+                    String name = "Книга";
+                    Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+                    if (cursor != null) {
+                        try {
+                            if (cursor.moveToFirst()) {
+                                int col = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                                if (col >= 0) name = cursor.getString(col);
+                            }
+                        } finally { cursor.close(); }
+                    }
+
+                    File temp = new File(getCacheDir(), "import.tmp");
+                    InputStream in = getContentResolver().openInputStream(uri);
+                    FileOutputStream out = new FileOutputStream(temp);
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                    in.close();
+                    out.close();
+
+                    BookParser.Parsed p = BookParser.parse(temp, name);
+                    if (p.title.isEmpty()) p.title = name;
+                    final BookData data = BookData.tokenize(p.text, p.chapters);
+                    final BookStore.Record r = store.add(p, data);
+                    temp.delete();
+
+                    onUi(new Runnable() {
+                        public void run() {
+                            install(r, data);
+                            toast("Книга добавлена!");
+                        }
+                    });
+                } catch (final Exception e) {
+                    onUi(new Runnable() {
+                        public void run() { toast("Ошибка импорта: " + e.getMessage()); }
+                    });
+                }
+            }
+        });
     }
 
     private void showSettings() {
-        clock.pause();
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(16), dp(8), dp(16), dp(8));
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(20), dp(10), dp(20), dp(10));
 
-        final SeekBar speed = settingBar(box, "Скорость: ", 58, (preferences.getInt("wpm", 300) - 50) / 25, 25, 50, " сл/мин");
-        final SeekBar size = settingBar(box, "Размер шрифта слова: ", 24, (preferences.getInt("size", 46) - 24) / 2, 2, 24, " sp");
-        final SeekBar minimum = settingBar(box, "Минимум на слово: ", 20, preferences.getInt("minimum", 0) / 25, 25, 0, " мс (0 — выкл.)");
+        // 1. Theme Selection
+        TextView themeLabel = new TextView(this);
+        themeLabel.setText("Тема оформления:");
+        themeLabel.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        layout.addView(themeLabel);
 
-        final CheckBox smart = check(box, "Умные паузы (пунктуация и длина)", "smart", true);
-        final CheckBox orp = check(box, "Опорная буква чуть левее центра (ORP)", "orp", false);
-        final CheckBox context = check(box, "Окно контекста книги на паузе", "context", true);
-        final CheckBox dark = check(box, "Инверсия (тёмная тема)", "dark", false);
+        final RadioGroup themeGroup = new RadioGroup(this);
+        themeGroup.setOrientation(RadioGroup.HORIZONTAL);
+        RadioButton rbDark = new RadioButton(this); rbDark.setText("Тёмная  "); rbDark.setId(1);
+        RadioButton rbLight = new RadioButton(this); rbLight.setText("Тёплая бумага  "); rbLight.setId(2);
+        RadioButton rbAmoled = new RadioButton(this); rbAmoled.setText("AMOLED"); rbAmoled.setId(3);
+        themeGroup.addView(rbDark);
+        themeGroup.addView(rbLight);
+        themeGroup.addView(rbAmoled);
 
-        final String[] fonts = {"serif", "sans", "mono"};
-        final String[] fontNames = {"С засечками (Georgia / Serif)", "Без засечек (Roboto / Sans)", "Моноширинный"};
-        final Spinner font = spinner(box, "Шрифт слова", fontNames, Math.max(0, Arrays.asList(fonts).indexOf(preferences.getString("font", "serif"))));
+        String curT = preferences.getString("theme", "dark");
+        if ("light".equals(curT)) rbLight.setChecked(true);
+        else if ("amoled".equals(curT)) rbAmoled.setChecked(true);
+        else rbDark.setChecked(true);
 
-        final String[] styles = {"box", "invert", "underline", "markers"};
-        final String[] styleNames = {"Прямоугольная рамка", "Инвертированный блок", "Подчёркивание", "Стрелки сверку/снизу"};
-        final Spinner style = spinner(box, "Выделение опорной буквы", styleNames, Math.max(0, Arrays.asList(styles).indexOf(preferences.getString("focusStyle", "box"))));
+        layout.addView(themeGroup);
 
-        final CheckBox keys = check(box, "Кнопки громкости меняют скорость (иначе ±10 слов)", "keysSpeed", false);
+        View div1 = new View(this);
+        div1.setBackgroundColor(Color.parseColor("#888888"));
+        layout.addView(div1, new LinearLayout.LayoutParams(-1, dp(1)));
 
-        TextView info = new TextView(this);
-        info.setText("\n" + screen.description() + "\nУстройство: " + Build.MODEL + " (" + Build.DISPLAY + ")");
-        info.setTextSize(11.5f);
-        info.setTextColor(Color.DKGRAY);
-        box.addView(info);
+        // 2. Reading Word Font Size
+        final TextView sizeVal = new TextView(this);
+        int curSize = preferences.getInt("size", 48);
+        sizeVal.setText("Размер слова: " + curSize + " sp");
+        sizeVal.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        sizeVal.setPadding(0, dp(8), 0, 0);
+        layout.addView(sizeVal);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(box);
+        final SeekBar sizeBar = new SeekBar(this);
+        sizeBar.setMax(40);
+        sizeBar.setProgress(curSize - 30);
+        sizeBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar s, int v, boolean u) { sizeVal.setText("Размер слова: " + (v + 30) + " sp"); }
+            public void onStartTrackingTouch(SeekBar s) {}
+            public void onStopTrackingTouch(SeekBar s) {}
+        });
+        layout.addView(sizeBar);
+
+        // 3. Context Font Size
+        final TextView ctxVal = new TextView(this);
+        int curCtx = preferences.getInt("contextSize", 19);
+        ctxVal.setText("Шрифт текста на паузе: " + curCtx + " sp");
+        ctxVal.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        ctxVal.setPadding(0, dp(8), 0, 0);
+        layout.addView(ctxVal);
+
+        final SeekBar ctxBar = new SeekBar(this);
+        ctxBar.setMax(14); // 14 to 28 sp
+        ctxBar.setProgress(curCtx - 14);
+        ctxBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar s, int v, boolean u) { ctxVal.setText("Шрифт текста на паузе: " + (v + 14) + " sp"); }
+            public void onStartTrackingTouch(SeekBar s) {}
+            public void onStopTrackingTouch(SeekBar s) {}
+        });
+        layout.addView(ctxBar);
+
+        // 4. Smart Punctuation Pauses
+        final CheckBox smartCheck = new CheckBox(this);
+        smartCheck.setText("Умные паузы на знаках препинания (. , ! ? —)");
+        smartCheck.setChecked(preferences.getBoolean("smart", true));
+        smartCheck.setPadding(0, dp(8), 0, 0);
+        layout.addView(smartCheck);
+
+        // 5. Context Card on Pause
+        final CheckBox ctxCheck = new CheckBox(this);
+        ctxCheck.setText("Показывать абзац текста на паузе");
+        ctxCheck.setChecked(preferences.getBoolean("context", true));
+        layout.addView(ctxCheck);
 
         new AlertDialog.Builder(this)
-            .setTitle("⚙ Настройки FastRead")
-            .setView(scroll)
-            .setNegativeButton("Отмена", null)
-            .setPositiveButton("Сохранить", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int which) {
+            .setTitle("Настройки FastRead")
+            .setView(layout)
+            .setPositiveButton("Применить", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    int selected = themeGroup.getCheckedRadioButtonId();
+                    String tName = selected == 2 ? "light" : selected == 3 ? "amoled" : "dark";
+
                     preferences.edit()
-                        .putInt("wpm", 50 + speed.getProgress() * 25)
-                        .putInt("size", 24 + size.getProgress() * 2)
-                        .putInt("minimum", minimum.getProgress() * 25)
-                        .putBoolean("smart", smart.isChecked())
-                        .putBoolean("orp", orp.isChecked())
-                        .putBoolean("context", context.isChecked())
-                        .putBoolean("dark", dark.isChecked())
-                        .putString("font", fonts[Math.max(0, font.getSelectedItemPosition())])
-                        .putString("focusStyle", styles[Math.max(0, style.getSelectedItemPosition())])
-                        .putBoolean("keysSpeed", keys.isChecked())
+                        .putString("theme", tName)
+                        .putInt("size", sizeBar.getProgress() + 30)
+                        .putInt("contextSize", ctxBar.getProgress() + 14)
+                        .putBoolean("smart", smartCheck.isChecked())
+                        .putBoolean("context", ctxCheck.isChecked())
                         .apply();
+
                     applySettings();
                     clock.seek(clock.index());
                     refreshUi();
                     showContext();
                 }
-            }).show();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
+    private void onUi(Runnable r) {
+        if (!destroyed) handler.post(r);
     }
 
     @Override
     public boolean onKeyDown(int key, KeyEvent event) {
         if (clock == null) return super.onKeyDown(key, event);
         if (key == KeyEvent.KEYCODE_VOLUME_UP || key == KeyEvent.KEYCODE_PAGE_UP) {
-            if (preferences.getBoolean("keysSpeed", false)) changeSpeed(25);
-            else seek(clock.index() - 10);
+            seek(clock.index() - 10);
             return true;
         }
         if (key == KeyEvent.KEYCODE_VOLUME_DOWN || key == KeyEvent.KEYCODE_PAGE_DOWN) {
-            if (preferences.getBoolean("keysSpeed", false)) changeSpeed(-25);
-            else seek(clock.index() + 10);
+            seek(clock.index() + 10);
             return true;
         }
         if (key == KeyEvent.KEYCODE_SPACE || key == KeyEvent.KEYCODE_DPAD_CENTER) {
@@ -1075,10 +1178,7 @@ public final class ReaderActivity extends Activity {
     @Override
     protected void onPause() {
         if (clock != null) clock.pause();
-        if (wordView != null) {
-            screen.stop(wordView);
-            wordView.setKeepScreenOn(false);
-        }
+        if (wordView != null) wordView.setKeepScreenOn(false);
         saveProgress();
         super.onPause();
     }
@@ -1086,34 +1186,198 @@ public final class ReaderActivity extends Activity {
     @Override
     protected void onDestroy() {
         destroyed = true;
-        loadGeneration++;
         if (clock != null) clock.pause();
-        if (wordView != null) screen.stop(wordView);
         worker.shutdown();
         super.onDestroy();
     }
 
-    @Override
-    public void onWindowFocusChanged(boolean focus) {
-        super.onWindowFocusChanged(focus);
-        if (focus) fullscreen();
-    }
+    // Canvas Vector Button for modern resolution-independent UI
+    public static class VectorButton extends View {
+        public static final int TYPE_MINUS = 1;
+        public static final int TYPE_PLUS = 2;
+        public static final int TYPE_PREV = 3;
+        public static final int TYPE_NEXT = 4;
+        public static final int TYPE_PLAY_PAUSE = 5;
+        public static final int TYPE_BACK10 = 6;
+        public static final int TYPE_FWD10 = 7;
+        public static final int TYPE_BOOKMARK = 8;
 
-    @Override
-    public void onBackPressed() {
-        if (clock != null && clock.playing()) clock.pause();
-        else super.onBackPressed();
-    }
+        private final int type;
+        private final float density;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private boolean playing = false;
+        private boolean isMarked = false;
+        private boolean circular = false;
+        private int iconColor = Color.WHITE;
+        private int activeColor = Color.parseColor("#ff4b4e");
 
-    private void toast(String message) {
-        Toast.makeText(this, message == null ? "Ошибка" : message, Toast.LENGTH_SHORT).show();
-    }
+        public VectorButton(Context context, float density, int type) {
+            super(context);
+            this.density = density;
+            this.type = type;
+            setClickable(true);
+            setFocusable(true);
+            setButtonColors(Color.WHITE, Color.parseColor("#222327"), Color.parseColor("#2c2e33"), false);
+        }
 
-    private void onUi(final Runnable task) {
-        runOnUiThread(new Runnable() {
-            public void run() {
-                if (!destroyed && !isFinishing()) task.run();
+        public void setCircular(boolean circular) {
+            this.circular = circular;
+            invalidate();
+        }
+
+        public void setPlaying(boolean playing) {
+            if (this.playing != playing) {
+                this.playing = playing;
+                invalidate();
             }
-        });
+        }
+
+        public void setBookmarkState(boolean marked, int activeColor, int defaultColor) {
+            this.isMarked = marked;
+            this.activeColor = activeColor;
+            this.iconColor = marked ? activeColor : defaultColor;
+            invalidate();
+        }
+
+        public void setButtonColors(int iconColor, int bgColor, int borderColor, boolean circular) {
+            this.iconColor = iconColor;
+            this.circular = circular;
+
+            GradientDrawable norm = new GradientDrawable();
+            if (circular) {
+                norm.setShape(GradientDrawable.OVAL);
+            } else {
+                norm.setCornerRadius(10f * density);
+            }
+            norm.setColor(bgColor);
+            if (borderColor != Color.TRANSPARENT) {
+                norm.setStroke(Math.round(1.2f * density), borderColor);
+            }
+
+            GradientDrawable press = new GradientDrawable();
+            if (circular) {
+                press.setShape(GradientDrawable.OVAL);
+            } else {
+                press.setCornerRadius(10f * density);
+            }
+            press.setColor(Color.argb(40, 255, 255, 255));
+            if (borderColor != Color.TRANSPARENT) {
+                press.setStroke(Math.round(1.2f * density), borderColor);
+            }
+
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_pressed}, press);
+            states.addState(new int[]{}, norm);
+            setBackgroundDrawable(states);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float cx = getWidth() / 2f;
+            float cy = getHeight() / 2f;
+
+            paint.setColor(iconColor);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+
+            switch (type) {
+                case TYPE_MINUS: {
+                    paint.setStrokeWidth(2.6f * density);
+                    float hw = 6f * density;
+                    canvas.drawLine(cx - hw, cy, cx + hw, cy, paint);
+                    break;
+                }
+                case TYPE_PLUS: {
+                    paint.setStrokeWidth(2.6f * density);
+                    float hw = 6f * density;
+                    canvas.drawLine(cx - hw, cy, cx + hw, cy, paint);
+                    canvas.drawLine(cx, cy - hw, cx, cy + hw, paint);
+                    break;
+                }
+                case TYPE_PREV: {
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(2.8f * density);
+                    paint.setStrokeJoin(Paint.Join.ROUND);
+                    path.reset();
+                    float w = 5f * density, h = 8f * density;
+                    path.moveTo(cx + w * 0.5f, cy - h);
+                    path.lineTo(cx - w * 0.7f, cy);
+                    path.lineTo(cx + w * 0.5f, cy + h);
+                    canvas.drawPath(path, paint);
+                    break;
+                }
+                case TYPE_NEXT: {
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(2.8f * density);
+                    paint.setStrokeJoin(Paint.Join.ROUND);
+                    path.reset();
+                    float w = 5f * density, h = 8f * density;
+                    path.moveTo(cx - w * 0.5f, cy - h);
+                    path.lineTo(cx + w * 0.7f, cy);
+                    path.lineTo(cx - w * 0.5f, cy + h);
+                    canvas.drawPath(path, paint);
+                    break;
+                }
+                case TYPE_PLAY_PAUSE: {
+                    if (playing) {
+                        float bw = 4f * density, bh = 8.5f * density, gap = 4.5f * density;
+                        RectF bar1 = new RectF(cx - gap - bw, cy - bh, cx - gap, cy + bh);
+                        RectF bar2 = new RectF(cx + gap, cy - bh, cx + gap + bw, cy + bh);
+                        canvas.drawRoundRect(bar1, 2f * density, 2f * density, paint);
+                        canvas.drawRoundRect(bar2, 2f * density, 2f * density, paint);
+                    } else {
+                        path.reset();
+                        float ph = 10f * density, pw = 8f * density;
+                        path.moveTo(cx - pw * 0.65f, cy - ph);
+                        path.lineTo(cx + pw * 1.05f, cy);
+                        path.lineTo(cx - pw * 0.65f, cy + ph);
+                        path.close();
+                        canvas.drawPath(path, paint);
+                    }
+                    break;
+                }
+                case TYPE_BACK10: {
+                    paint.setTextSize(13f * density);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                    Paint.FontMetrics fm = paint.getFontMetrics();
+                    float y = cy - (fm.ascent + fm.descent) / 2f;
+                    canvas.drawText("−10", cx, y, paint);
+                    break;
+                }
+                case TYPE_FWD10: {
+                    paint.setTextSize(13f * density);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                    Paint.FontMetrics fm = paint.getFontMetrics();
+                    float y = cy - (fm.ascent + fm.descent) / 2f;
+                    canvas.drawText("+10", cx, y, paint);
+                    break;
+                }
+                case TYPE_BOOKMARK: {
+                    path.reset();
+                    float bw = 6.5f * density, bh = 8.5f * density;
+                    path.moveTo(cx - bw, cy - bh);
+                    path.lineTo(cx + bw, cy - bh);
+                    path.lineTo(cx + bw, cy + bh);
+                    path.lineTo(cx, cy + bh * 0.45f);
+                    path.lineTo(cx - bw, cy + bh);
+                    path.close();
+                    if (isMarked) {
+                        paint.setColor(activeColor);
+                        paint.setStyle(Paint.Style.FILL);
+                        canvas.drawPath(path, paint);
+                    } else {
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(2f * density);
+                        canvas.drawPath(path, paint);
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
