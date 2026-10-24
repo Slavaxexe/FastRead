@@ -39,8 +39,9 @@ public final class ReaderActivity extends Activity {
     private View dividerView;
     private WordView wordView;
     private TextView bannerView, positionView, remainingView, speedView, contextView, logoText;
+    private Runnable contextJustifyRunnable;
     private View logoDot;
-    private Button booksBtn, addBtn, settingsBtn;
+    private TextView booksBtn, addBtn, settingsBtn;
     private VectorButton playButton, markButton, slowerBtn, fasterBtn, back10Btn, back1Btn, fwd1Btn, fwd10Btn;
     private LinearLayout speedPod;
     private ChapterSeekBar progress;
@@ -186,11 +187,26 @@ public final class ReaderActivity extends Activity {
         progParams.setMargins(dp(10), 0, dp(10), 0);
         progress.setLayoutParams(progParams);
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            private boolean isTracking = false;
+
             public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
-                if (fromUser && clock != null) seek(value);
+                if (fromUser && clock != null) {
+                    if (isTracking) {
+                        clock.seek(value);
+                        refreshUi();
+                    } else {
+                        seek(value);
+                    }
+                }
             }
-            public void onStartTrackingTouch(SeekBar bar) {}
-            public void onStopTrackingTouch(SeekBar bar) {}
+            public void onStartTrackingTouch(SeekBar bar) {
+                isTracking = true;
+                if (clock != null && clock.playing()) clock.pause();
+            }
+            public void onStopTrackingTouch(SeekBar bar) {
+                isTracking = false;
+                if (clock != null) seek(bar.getProgress());
+            }
         });
         progressRow.addView(progress);
 
@@ -208,7 +224,54 @@ public final class ReaderActivity extends Activity {
         controlsView.setOrientation(LinearLayout.VERTICAL);
         controlsView.setPadding(dp(16), dp(4), dp(16), dp(14));
 
-        // ROW 1: Bookmark, Speed Pod, Stats Pill
+        // ROW 1: Main Playback Transport [ −10  ‹   ▶   ›  +10 ]
+        transportRow = new LinearLayout(this);
+        transportRow.setOrientation(LinearLayout.HORIZONTAL);
+        transportRow.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
+
+        back10Btn = new VectorButton(this, density, VectorButton.TYPE_BACK10);
+        back10Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() - 10); }
+        });
+
+        back1Btn = new VectorButton(this, density, VectorButton.TYPE_PREV);
+        back1Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() - 1); }
+        });
+
+        // 54dp Circular Hero Play Button
+        playButton = new VectorButton(this, density, VectorButton.TYPE_PLAY_PAUSE);
+        playButton.setCircular(true);
+        playButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { toggle(); }
+        });
+
+        fwd1Btn = new VectorButton(this, density, VectorButton.TYPE_NEXT);
+        fwd1Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() + 1); }
+        });
+
+        fwd10Btn = new VectorButton(this, density, VectorButton.TYPE_FWD10);
+        fwd10Btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { seek(clock.index() + 10); }
+        });
+
+        transportRow.addView(back10Btn, new LinearLayout.LayoutParams(dp(46), dp(42)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
+        transportRow.addView(back1Btn, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
+        transportRow.addView(playButton, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
+        transportRow.addView(fwd1Btn, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
+        transportRow.addView(fwd10Btn, new LinearLayout.LayoutParams(dp(46), dp(42)));
+
+        controlsView.addView(transportRow);
+
+        View rowGap = new View(this);
+        controlsView.addView(rowGap, new LinearLayout.LayoutParams(-1, dp(10)));
+
+        // ROW 2: Bookmark, Speed Pod, Symmetry
         speedRow = new LinearLayout(this);
         speedRow.setOrientation(LinearLayout.HORIZONTAL);
         speedRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -220,7 +283,7 @@ public final class ReaderActivity extends Activity {
         markButton.setOnLongClickListener(new View.OnLongClickListener() {
             public boolean onLongClick(View v) { showBookmarks(); return true; }
         });
-        speedRow.addView(markButton, new LinearLayout.LayoutParams(dp(42), dp(40)));
+        speedRow.addView(markButton, new LinearLayout.LayoutParams(dp(42), dp(38)));
 
         View speedSpacer1 = new View(this);
         speedRow.addView(speedSpacer1, new LinearLayout.LayoutParams(0, -1, 1f));
@@ -238,7 +301,7 @@ public final class ReaderActivity extends Activity {
 
         speedView = new TextView(this);
         speedView.setText("300\nсл/м");
-        speedView.setTextSize(12.5f);
+        speedView.setTextSize(12f);
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(themeText);
@@ -249,9 +312,9 @@ public final class ReaderActivity extends Activity {
             public void onClick(View v) { changeSpeed(25); }
         });
 
-        speedPod.addView(slowerBtn, new LinearLayout.LayoutParams(dp(36), dp(40)));
-        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(60), dp(40)));
-        speedPod.addView(fasterBtn, new LinearLayout.LayoutParams(dp(36), dp(40)));
+        speedPod.addView(slowerBtn, new LinearLayout.LayoutParams(dp(36), dp(38)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(62), dp(38)));
+        speedPod.addView(fasterBtn, new LinearLayout.LayoutParams(dp(36), dp(38)));
         speedRow.addView(speedPod, new LinearLayout.LayoutParams(-2, -2));
 
         View speedSpacer2 = new View(this);
@@ -259,56 +322,9 @@ public final class ReaderActivity extends Activity {
 
         // Right placeholder matching bookmark width for perfect center symmetry
         View rightSymmetry = new View(this);
-        speedRow.addView(rightSymmetry, new LinearLayout.LayoutParams(dp(42), dp(40)));
+        speedRow.addView(rightSymmetry, new LinearLayout.LayoutParams(dp(42), dp(38)));
 
         controlsView.addView(speedRow);
-
-        View rowGap = new View(this);
-        controlsView.addView(rowGap, new LinearLayout.LayoutParams(-1, dp(10)));
-
-        // ROW 2: Main Playback Transport [ −10  ‹   ▶   ›  +10 ]
-        transportRow = new LinearLayout(this);
-        transportRow.setOrientation(LinearLayout.HORIZONTAL);
-        transportRow.setGravity(Gravity.CENTER);
-
-        back10Btn = new VectorButton(this, density, VectorButton.TYPE_BACK10);
-        back10Btn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() - 10); }
-        });
-
-        back1Btn = new VectorButton(this, density, VectorButton.TYPE_PREV);
-        back1Btn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() - 1); }
-        });
-
-        // 56dp Circular Hero Play Button
-        playButton = new VectorButton(this, density, VectorButton.TYPE_PLAY_PAUSE);
-        playButton.setCircular(true);
-        playButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { toggle(); }
-        });
-
-        fwd1Btn = new VectorButton(this, density, VectorButton.TYPE_NEXT);
-        fwd1Btn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() + 1); }
-        });
-
-        fwd10Btn = new VectorButton(this, density, VectorButton.TYPE_FWD10);
-        fwd10Btn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { seek(clock.index() + 10); }
-        });
-
-        transportRow.addView(back10Btn, new LinearLayout.LayoutParams(dp(46), dp(44)));
-        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
-        transportRow.addView(back1Btn, new LinearLayout.LayoutParams(dp(42), dp(44)));
-        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
-        transportRow.addView(playButton, new LinearLayout.LayoutParams(dp(56), dp(56)));
-        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(12), -1));
-        transportRow.addView(fwd1Btn, new LinearLayout.LayoutParams(dp(42), dp(44)));
-        transportRow.addView(new View(this), new LinearLayout.LayoutParams(dp(8), -1));
-        transportRow.addView(fwd10Btn, new LinearLayout.LayoutParams(dp(46), dp(44)));
-
-        controlsView.addView(transportRow);
 
         root.addView(controlsView);
 
@@ -424,31 +440,38 @@ public final class ReaderActivity extends Activity {
         speedPod.setPadding(dp(2), 0, dp(2), 0);
     }
 
-    private Button makeHeaderButton(String text, View.OnClickListener onClick) {
-        Button btn = new Button(this);
+    private TextView makeHeaderButton(String text, View.OnClickListener onClick) {
+        TextView btn = new TextView(this);
         btn.setText(text);
         btn.setTextSize(12.5f);
-        btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        btn.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
         btn.setGravity(Gravity.CENTER);
-        btn.setPadding(dp(10), 0, dp(10), 0);
+        btn.setPadding(dp(11), dp(5), dp(11), dp(5));
+        btn.setClickable(true);
+        btn.setFocusable(true);
+        btn.setOnClickListener(onClick);
+        applyHeaderButtonTheme(btn);
+        return btn;
+    }
+
+    private void applyHeaderButtonTheme(TextView btn) {
+        if (btn == null) return;
+        btn.setTextColor(themeMuted);
 
         GradientDrawable norm = new GradientDrawable();
-        norm.setColor(themeSoft);
-        norm.setCornerRadius(dp(8));
-        norm.setStroke(dp(1f), themeLine);
+        norm.setColor(Color.TRANSPARENT);
+        norm.setCornerRadius(dp(6));
+        norm.setStroke(dp(0.9f), themeLine);
 
         GradientDrawable press = new GradientDrawable();
-        press.setColor(themeLine);
-        press.setCornerRadius(dp(8));
-        press.setStroke(dp(1f), themeLine);
+        press.setColor(Color.argb(30, 128, 128, 128));
+        press.setCornerRadius(dp(6));
+        press.setStroke(dp(0.9f), themeLine);
 
         StateListDrawable sld = new StateListDrawable();
         sld.addState(new int[]{android.R.attr.state_pressed}, press);
         sld.addState(new int[]{}, norm);
         btn.setBackgroundDrawable(sld);
-        btn.setTextColor(themeText);
-        btn.setOnClickListener(onClick);
-        return btn;
     }
 
     private void applySettings() {
@@ -484,10 +507,12 @@ public final class ReaderActivity extends Activity {
         fwd1Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
         fwd10Btn.setButtonColors(themeText, buttonBg, buttonLine, false);
 
-        // Large 56dp Hero Play Button: in dark theme, cream circle with dark icon; in light theme, dark circle with light icon
-        playButton.setButtonColors("light".equals(currentTheme) ? Color.WHITE : Color.parseColor("#121315"),
-                                   "light".equals(currentTheme) ? Color.parseColor("#1c1c1e") : Color.parseColor("#e9e6df"),
-                                   themeAccent, true);
+        applyHeaderButtonTheme(booksBtn);
+        applyHeaderButtonTheme(addBtn);
+        applyHeaderButtonTheme(settingsBtn);
+
+        // Large 54dp Hero Play Button: Solid vibrant accent red circle with crisp white icon
+        playButton.setButtonColors(Color.WHITE, themeAccent, Color.TRANSPARENT, true);
 
         logoDot.setBackgroundColor(themeAccent);
         GradientDrawable dotBg = new GradientDrawable();
@@ -548,8 +573,8 @@ public final class ReaderActivity extends Activity {
         lastUi = SystemClock.uptimeMillis();
         int index = clock.index();
         int chapter = book.chapterAt(index);
-
-        bannerView.setText("📖 " + record.title + (chapter >= 0 ? "  •  " + book.chapters[chapter].title : ""));
+        String chTitle = (chapter >= 0 && book.chapters != null && chapter < book.chapters.length && book.chapters[chapter] != null) ? book.chapters[chapter].title : "";
+        bannerView.setText("📖 " + record.title + (chTitle.length() > 0 ? "  •  " + chTitle : ""));
         positionView.setText((book.words.length > 0 ? index + 1 : 0) + " / " + book.words.length);
 
         int wordsLeft = Math.max(0, book.words.length - index);
@@ -674,9 +699,6 @@ public final class ReaderActivity extends Activity {
                     if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
                         builder.append("\n");
                     }
-                    if (!book.words[i].matches("^[«“\"'].*")) {
-                        builder.append("“ ");
-                    }
                 } else if (type == BookData.TYPE_AUTHOR) {
                     if (!book.words[i].matches("^[—–-].*")) {
                         builder.append("— ");
@@ -721,9 +743,10 @@ public final class ReaderActivity extends Activity {
                     builder.setSpan(new RelativeSizeSpan(1.22f), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.append("\n\n");
                 } else if (currentParagraphType == BookData.TYPE_EPIGRAPH) {
-                    builder.setSpan(new EpigraphSpan(dp(24), dp(2.8f), dp(10), themeAccent), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new EpigraphSpan(dp(24), dp(2.5f), dp(10), themeAccent), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    builder.append("\n");
+                    boolean nextIsAuthor = (i + 1 < endIdx && book.types != null && i + 1 < book.types.length && book.types[i + 1] == BookData.TYPE_AUTHOR);
+                    builder.append(nextIsAuthor ? "\n" : "\n\n");
                 } else if (currentParagraphType == BookData.TYPE_AUTHOR) {
                     builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -739,71 +762,83 @@ public final class ReaderActivity extends Activity {
         contextView.setText(builder);
 
         final int targetOffset = currentWordStartInSpan;
-        contextView.post(new Runnable() {
+        if (contextJustifyRunnable != null) {
+            contextView.removeCallbacks(contextJustifyRunnable);
+        }
+        contextJustifyRunnable = new Runnable() {
             @Override
             public void run() {
-                Layout layout = contextView.getLayout();
-                if (layout != null) {
-                    int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
-                    if (availableWidth > 0) {
-                        CharSequence text = builder;
-                        int lineCount = layout.getLineCount();
-                        boolean modified = false;
+                try {
+                    if (contextView == null || book == null) return;
+                    Layout layout = contextView.getLayout();
+                    if (layout != null) {
+                        CharSequence layoutText = layout.getText();
+                        if (layoutText == null || !layoutText.toString().equals(builder.toString())) return;
 
-                        for (int l = 0; l < lineCount; l++) {
-                            int lineStart = layout.getLineStart(l);
-                            int lineEnd = layout.getLineEnd(l);
-                            if (lineEnd <= lineStart) continue;
+                        int availableWidth = contextView.getWidth() - contextView.getPaddingLeft() - contextView.getPaddingRight();
+                        if (availableWidth > 0) {
+                            CharSequence text = builder;
+                            int textLen = text.length();
+                            int lineCount = layout.getLineCount();
+                            boolean modified = false;
 
-                            char lastChar = text.charAt(lineEnd - 1);
-                            if (lastChar == '\n' || lastChar == '\r') continue;
-                            if (lineEnd < text.length() && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
+                            for (int l = 0; l < lineCount; l++) {
+                                int lineStart = layout.getLineStart(l);
+                                int lineEnd = layout.getLineEnd(l);
+                                if (lineStart < 0 || lineStart >= textLen || lineEnd <= lineStart || lineEnd > textLen) continue;
 
-                            Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
-                            if (alignSpans != null && alignSpans.length > 0) continue;
-                            Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
-                            if (epigraphSpans != null && epigraphSpans.length > 0) continue;
+                                char lastChar = text.charAt(lineEnd - 1);
+                                if (lastChar == '\n' || lastChar == '\r') continue;
+                                if (lineEnd < textLen && (text.charAt(lineEnd) == '\n' || text.charAt(lineEnd) == '\r')) continue;
 
-                            float lineWidth = layout.getLineWidth(l);
-                            float emptySpace = availableWidth - lineWidth;
+                                Object[] alignSpans = builder.getSpans(lineStart, lineEnd, AlignmentSpan.class);
+                                if (alignSpans != null && alignSpans.length > 0) continue;
+                                Object[] epigraphSpans = builder.getSpans(lineStart, lineEnd, EpigraphSpan.class);
+                                if (epigraphSpans != null && epigraphSpans.length > 0) continue;
 
-                            if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
-                                int spaceCount = 0;
-                                for (int ci = lineStart; ci < lineEnd; ci++) {
-                                    if (text.charAt(ci) == ' ') spaceCount++;
-                                }
-                                if (spaceCount >= 1) {
-                                    float spaceWidth = contextView.getPaint().measureText(" ");
-                                    float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
-                                    float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
-                                    if (scaleX > 1.05f && scaleX <= 2.8f) {
-                                        for (int ci = lineStart; ci < lineEnd; ci++) {
-                                            if (text.charAt(ci) == ' ') {
-                                                builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                                                modified = true;
+                                float lineWidth = layout.getLineWidth(l);
+                                float emptySpace = availableWidth - lineWidth;
+
+                                if (emptySpace > dp(6) && emptySpace < availableWidth * 0.40f) {
+                                    int spaceCount = 0;
+                                    for (int ci = lineStart; ci < lineEnd; ci++) {
+                                        if (text.charAt(ci) == ' ') spaceCount++;
+                                    }
+                                    if (spaceCount >= 1) {
+                                        float spaceWidth = contextView.getPaint().measureText(" ");
+                                        float extraPerSpace = (emptySpace - dp(2f)) / spaceCount;
+                                        float scaleX = (spaceWidth + extraPerSpace) / spaceWidth;
+                                        if (scaleX > 1.05f && scaleX <= 2.8f) {
+                                            for (int ci = lineStart; ci < lineEnd; ci++) {
+                                                if (ci < textLen && text.charAt(ci) == ' ') {
+                                                    builder.setSpan(new ScaleXSpan(scaleX), ci, ci + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                                    modified = true;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        if (modified) {
-                            contextView.setText(builder);
+                            if (modified) {
+                                contextView.setText(builder);
+                            }
                         }
                     }
-                }
 
-                if (targetOffset >= 0 && targetOffset < contextView.getText().length()) {
-                    Layout lyt = contextView.getLayout();
-                    if (lyt != null) {
-                        int line = lyt.getLineForOffset(targetOffset);
-                        int lineTop = lyt.getLineTop(line);
-                        int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
-                        contextScroll.smoothScrollTo(0, targetY);
+                    if (targetOffset >= 0 && targetOffset < contextView.getText().length()) {
+                        Layout lyt = contextView.getLayout();
+                        if (lyt != null && targetOffset < lyt.getText().length()) {
+                            int line = lyt.getLineForOffset(targetOffset);
+                            int lineTop = lyt.getLineTop(line);
+                            int targetY = Math.max(0, lineTop - contextScroll.getHeight() / 2 + dp(20));
+                            contextScroll.smoothScrollTo(0, targetY);
+                        }
                     }
+                } catch (Exception ignored) {
                 }
             }
-        });
+        };
+        contextView.post(contextJustifyRunnable);
     }
 
     private void toggle() {
@@ -1302,7 +1337,7 @@ public final class ReaderActivity extends Activity {
                     paint.setStrokeWidth(2.8f * density);
                     paint.setStrokeJoin(Paint.Join.ROUND);
                     path.reset();
-                    float w = 5f * density, h = 8f * density;
+                    float w = 6f * density, h = 9f * density;
                     path.moveTo(cx + w * 0.5f, cy - h);
                     path.lineTo(cx - w * 0.7f, cy);
                     path.lineTo(cx + w * 0.5f, cy + h);
@@ -1314,7 +1349,7 @@ public final class ReaderActivity extends Activity {
                     paint.setStrokeWidth(2.8f * density);
                     paint.setStrokeJoin(Paint.Join.ROUND);
                     path.reset();
-                    float w = 5f * density, h = 8f * density;
+                    float w = 6f * density, h = 9f * density;
                     path.moveTo(cx - w * 0.5f, cy - h);
                     path.lineTo(cx + w * 0.7f, cy);
                     path.lineTo(cx - w * 0.5f, cy + h);
@@ -1323,14 +1358,14 @@ public final class ReaderActivity extends Activity {
                 }
                 case TYPE_PLAY_PAUSE: {
                     if (playing) {
-                        float bw = 4f * density, bh = 8.5f * density, gap = 4.5f * density;
+                        float bw = 4f * density, bh = 9f * density, gap = 4.5f * density;
                         RectF bar1 = new RectF(cx - gap - bw, cy - bh, cx - gap, cy + bh);
                         RectF bar2 = new RectF(cx + gap, cy - bh, cx + gap + bw, cy + bh);
                         canvas.drawRoundRect(bar1, 2f * density, 2f * density, paint);
                         canvas.drawRoundRect(bar2, 2f * density, 2f * density, paint);
                     } else {
                         path.reset();
-                        float ph = 10f * density, pw = 8f * density;
+                        float ph = 11f * density, pw = 9f * density;
                         path.moveTo(cx - pw * 0.65f, cy - ph);
                         path.lineTo(cx + pw * 1.05f, cy);
                         path.lineTo(cx - pw * 0.65f, cy + ph);

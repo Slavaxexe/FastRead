@@ -9,7 +9,8 @@ import android.view.*;
  * Implements Herman Edelkin's original design aesthetics:
  * - Rich color themes: Modern Dark (#121315), Warm Paper (#f5f2ec), and AMOLED (#000000)
  * - Vibrant Red ORP focus letter (#ff4b4e / #de2328)
- * - Top & bottom guide lines with center accent ticks
+ * - Top & bottom guide lines centered compactly around the word (no screen-wide explosion during reading)
+ * - Subtle alignment ticks strictly on the guide lines (never colliding with focus letter frame)
  * - Customizable focus styling (Red letter, Box, Markers, Underline, Invert)
  */
 public final class WordView extends View {
@@ -113,7 +114,7 @@ public final class WordView extends View {
         frameId = id;
         focus = BookData.focusIndex(this.word, orp);
         updateRegion();
-        invalidate(wordRegion);
+        invalidate();
     }
 
     private void updateRegion() {
@@ -135,13 +136,16 @@ public final class WordView extends View {
         // 1. Background fill
         decorPaint.setColor(bgColor);
         decorPaint.setStyle(Paint.Style.FILL);
-        canvas.drawRect(wordRegion, decorPaint);
+        canvas.drawRect(0, 0, getWidth(), getHeight(), decorPaint);
 
         float center = getWidth() / 2f;
-        float top = 18 * density;
-        float bottom = getHeight() - 18 * density;
+        float cy = getHeight() / 2f;
+        float size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
+        float halfStage = Math.max(38f * density, size * 0.78f);
+        float top = cy - halfStage;
+        float bottom = cy + halfStage;
 
-        // 2. Guide lines (Herman's guides with center accent red notches)
+        // 2. Guide lines (Herman's guides with center accent ticks)
         decorPaint.setColor(lineColor);
         decorPaint.setStrokeWidth(1.5f * density);
         decorPaint.setStyle(Paint.Style.STROKE);
@@ -149,20 +153,18 @@ public final class WordView extends View {
         canvas.drawLine(lineInset, top, getWidth() - lineInset, top, decorPaint);
         canvas.drawLine(lineInset, bottom, getWidth() - lineInset, bottom, decorPaint);
 
-        // Center vertical accent notch at top & bottom guide
-        decorPaint.setColor(accentColor);
-        decorPaint.setStrokeWidth(2.5f * density);
-        float tickLen = 12 * density;
+        // Center vertical notch strictly on outer guide lines (never collides with word frame)
+        decorPaint.setStrokeWidth(1.8f * density);
+        float tickLen = 4.5f * density;
         canvas.drawLine(center, top, center, top + tickLen, decorPaint);
         canvas.drawLine(center, bottom - tickLen, center, bottom, decorPaint);
 
         // 3. Word typography & focus point
         if (word.length() > 0) {
-            float size = sizeSp * getResources().getDisplayMetrics().scaledDensity;
             normalPaint.setTextSize(size);
             focusPaint.setTextSize(size);
 
-            float padding = (style.equals("box") ? 6f : style.equals("invert") ? 5f : 0f) * density;
+            float padding = (style.equals("box") ? 5f : style.equals("invert") ? 4f : 0f) * density;
             float fw = focusPaint.measureText(word, focus, focus + 1);
             float leftWidth = normalPaint.measureText(word, 0, focus);
             float rightWidth = normalPaint.measureText(word, focus + 1, word.length());
@@ -179,7 +181,7 @@ public final class WordView extends View {
             }
 
             normalPaint.getFontMetrics(metrics);
-            float baseline = getHeight() / 2f - (metrics.ascent + metrics.descent) / 2f;
+            float baseline = cy - (metrics.ascent + metrics.descent) / 2f;
             float left = center - fw / 2f - padding;
             float right = center + fw / 2f + padding;
 
@@ -198,26 +200,26 @@ public final class WordView extends View {
                 decorPaint.setColor(accentColor);
                 decorPaint.setStyle(Paint.Style.FILL);
                 RectF invRect = new RectF(left, boxTop, right, boxBottom);
-                canvas.drawRoundRect(invRect, 4f * density, 4f * density, decorPaint);
+                canvas.drawRoundRect(invRect, 3.5f * density, 3.5f * density, decorPaint);
                 focusPaint.setColor(Color.WHITE);
             } else if (style.equals("box")) {
                 decorPaint.setColor(accentColor);
                 decorPaint.setStyle(Paint.Style.STROKE);
-                decorPaint.setStrokeWidth(2f * density);
+                decorPaint.setStrokeWidth(1.8f * density);
                 RectF boxRect = new RectF(left, boxTop, right, boxBottom);
-                canvas.drawRoundRect(boxRect, 4f * density, 4f * density, decorPaint);
+                canvas.drawRoundRect(boxRect, 3.5f * density, 3.5f * density, decorPaint);
             } else if (style.equals("underline")) {
                 decorPaint.setColor(accentColor);
-                decorPaint.setStrokeWidth(3f * density);
+                decorPaint.setStrokeWidth(2.5f * density);
                 canvas.drawLine(left, boxBottom, right, boxBottom, decorPaint);
             } else if (style.equals("markers")) {
                 decorPaint.setColor(accentColor);
-                decorPaint.setStrokeWidth(2f * density);
-                float mH = 8 * density;
-                canvas.drawLine(center - 5 * density, boxTop - mH, center, boxTop - 2 * density, decorPaint);
-                canvas.drawLine(center + 5 * density, boxTop - mH, center, boxTop - 2 * density, decorPaint);
-                canvas.drawLine(center - 5 * density, boxBottom + mH, center, boxBottom + 2 * density, decorPaint);
-                canvas.drawLine(center + 5 * density, boxBottom + mH, center, boxBottom + 2 * density, decorPaint);
+                decorPaint.setStrokeWidth(1.8f * density);
+                float mH = 5f * density;
+                canvas.drawLine(center - 4 * density, boxTop - mH, center, boxTop - 1.5f * density, decorPaint);
+                canvas.drawLine(center + 4 * density, boxTop - mH, center, boxTop - 1.5f * density, decorPaint);
+                canvas.drawLine(center - 4 * density, boxBottom + mH, center, boxBottom + 1.5f * density, decorPaint);
+                canvas.drawLine(center + 4 * density, boxBottom + mH, center, boxBottom + 1.5f * density, decorPaint);
             }
 
             // Draw the focus letter

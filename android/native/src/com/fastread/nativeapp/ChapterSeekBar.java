@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Modern colorful ChapterSeekBar:
- * Sleek 4dp track with accent fill (#ff4b4e / #de2328), circular thumb, chapter ticks, and bookmark dots.
+ * Razor-thin 2.5dp track with accent fill (#ff4b4e / #de2328), neat 11dp circular thumb, chapter ticks, and bookmark dots.
  */
 public final class ChapterSeekBar extends SeekBar {
     private final Paint tickPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -44,21 +44,21 @@ public final class ChapterSeekBar extends SeekBar {
 
     private void applyStyling() {
         tickPaint.setColor(tickColor);
-        tickPaint.setStrokeWidth(2f * density);
+        tickPaint.setStrokeWidth(1.2f * density);
 
         bmPaint.setColor(accentColor);
-        bmPaint.setStrokeWidth(3.5f * density);
+        bmPaint.setStrokeWidth(2f * density);
 
-        // Sleek 4dp track with rounded corners
+        // Razor-thin 2.5dp track with rounded corners
         GradientDrawable trackBg = new GradientDrawable();
         trackBg.setColor(trackBgColor);
-        trackBg.setCornerRadius(dp(2));
-        trackBg.setSize(-1, dp(4));
+        trackBg.setCornerRadius(dp(1.25f));
+        trackBg.setSize(-1, dp(2.5f));
 
         GradientDrawable trackProgress = new GradientDrawable();
         trackProgress.setColor(accentColor);
-        trackProgress.setCornerRadius(dp(2));
-        trackProgress.setSize(-1, dp(4));
+        trackProgress.setCornerRadius(dp(1.25f));
+        trackProgress.setSize(-1, dp(2.5f));
         ClipDrawable clipProgress = new ClipDrawable(trackProgress, Gravity.LEFT, ClipDrawable.HORIZONTAL);
 
         LayerDrawable layers = new LayerDrawable(new Drawable[]{trackBg, clipProgress});
@@ -66,14 +66,15 @@ public final class ChapterSeekBar extends SeekBar {
         layers.setId(1, android.R.id.progress);
         setProgressDrawable(layers);
 
-        // 16dp circular thumb with crisp border
+        // Neat 11dp circular thumb with subtle border
         GradientDrawable thumb = new GradientDrawable();
         thumb.setShape(GradientDrawable.OVAL);
         thumb.setColor(thumbColor);
-        thumb.setStroke(dp(1.5f), trackBgColor);
-        thumb.setSize(dp(16), dp(16));
+        thumb.setStroke(dp(1.2f), trackBgColor);
+        thumb.setSize(dp(11), dp(11));
         setThumb(thumb);
-        setThumbOffset(dp(8));
+        setThumbOffset(dp(5.5f));
+        setPadding(dp(12), dp(8), dp(12), dp(8));
     }
 
     public void setBookData(BookData data, List<Integer> bms) {
@@ -90,7 +91,7 @@ public final class ChapterSeekBar extends SeekBar {
             int total = bookData.words.length;
             int avail = getWidth() - getPaddingLeft() - getPaddingRight();
             int cy = getHeight() / 2;
-            int tickH = dp(6);
+            int tickH = dp(3.5f);
 
             // Draw chapter ticks
             if (bookData.chapters != null) {
@@ -104,7 +105,7 @@ public final class ChapterSeekBar extends SeekBar {
 
             // Draw bookmarks
             if (bookmarks != null && !bookmarks.isEmpty()) {
-                int bmH = dp(8);
+                int bmH = dp(5f);
                 for (Integer bm : bookmarks) {
                     if (bm < 0 || bm >= total) continue;
                     float ratio = (float) bm / (float) total;
