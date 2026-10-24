@@ -136,11 +136,13 @@ public final class ReaderActivity extends Activity {
             setFocusable(true);
 
             GradientDrawable normal = new GradientDrawable();
-            normal.setColor(Color.TRANSPARENT);
+            normal.setColor(Color.parseColor("#f0f0f0"));
+            normal.setStroke(Math.round(1f * density), Color.parseColor("#e0e0e0"));
             normal.setCornerRadius(8f * density);
 
             GradientDrawable pressed = new GradientDrawable();
-            pressed.setColor(Color.parseColor("#e0e0e0"));
+            pressed.setColor(Color.parseColor("#d8d8d8"));
+            pressed.setStroke(Math.round(1f * density), Color.parseColor("#c0c0c0"));
             pressed.setCornerRadius(8f * density);
 
             StateListDrawable states = new StateListDrawable();
@@ -350,17 +352,27 @@ public final class ReaderActivity extends Activity {
 
         // 4. Paused Context Card (visible on pause)
         contextCard = new FrameLayout(this);
-        contextCard.setBackgroundColor(Color.WHITE);
-        contextCard.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.WHITE);
+        cardBg.setStroke(dp(1.2f), Color.parseColor("#cccccc"));
+        cardBg.setCornerRadius(dp(8f));
+        contextCard.setBackgroundDrawable(cardBg);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, 0, 1f);
+        cardParams.setMargins(dp(8), dp(4), dp(8), dp(4));
+        contextCard.setLayoutParams(cardParams);
 
         contextScroll = new ScrollView(this);
         contextScroll.setFillViewport(true);
         contextView = new TextView(this);
-        contextView.setTextSize(17f);
+        contextView.setTextSize(preferences != null ? preferences.getInt("contextSize", 19) : 19f);
         contextView.setTypeface(Typeface.SERIF);
         contextView.setTextColor(Color.BLACK);
-        contextView.setLineSpacing(dp(2.5f), 1.25f);
-        contextView.setPadding(dp(20), dp(10), dp(20), dp(10));
+        contextView.setLineSpacing(dp(3f), 1.25f);
+        contextView.setPadding(dp(16), dp(12), dp(16), dp(12));
+        if (Build.VERSION.SDK_INT >= 26) {
+            contextView.setJustificationMode(Layout.JUSTIFICATION_MODE_INTER_WORD);
+        }
         contextView.setMovementMethod(LinkMovementMethod.getInstance());
         contextScroll.addView(contextView);
         contextCard.addView(contextScroll);
@@ -405,13 +417,14 @@ public final class ReaderActivity extends Activity {
             }
         });
 
-        // 7. Single-row Controls Bar:
-        // [🔖] [−] 300 сл/м [+]      [−10] [‹] ( ▶ ) [›] [+10]
+        // 7. Grouped Controls Bar:
+        // [ 🔖 ]      [ −  300 сл/м  + ]          [ −10  ‹  ▶  ›  +10 ]
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.CENTER_VERTICAL);
-        controls.setPadding(dp(6), dp(2), dp(6), dp(6));
+        controls.setPadding(dp(8), dp(4), dp(8), dp(6));
 
+        // Group 1: Bookmark Button
         markButton = new BookmarkButton(this, density);
         markButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { toggleBookmark(); }
@@ -420,7 +433,18 @@ public final class ReaderActivity extends Activity {
             public boolean onLongClick(View v) { showBookmarks(); return true; }
         });
 
-        Button slower = makeFlatButton("−", 32, 44, false, 24f, new View.OnClickListener() {
+        // Group 2: Speed Controls Pod (shaded rounded container)
+        LinearLayout speedPod = new LinearLayout(this);
+        speedPod.setOrientation(LinearLayout.HORIZONTAL);
+        speedPod.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable speedBg = new GradientDrawable();
+        speedBg.setColor(Color.parseColor("#f0f0f0"));
+        speedBg.setCornerRadius(dp(8f));
+        speedBg.setStroke(dp(1f), Color.parseColor("#e0e0e0"));
+        speedPod.setBackgroundDrawable(speedBg);
+        speedPod.setPadding(dp(2), 0, dp(2), 0);
+
+        Button slower = makeFlatButton("−", 36, 44, false, 28f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(-25); }
         });
 
@@ -430,51 +454,64 @@ public final class ReaderActivity extends Activity {
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(Color.BLACK);
-        speedView.setPadding(dp(2), 0, dp(2), 0);
+        speedView.setPadding(dp(4), 0, dp(4), 0);
 
-        Button faster = makeFlatButton("+", 32, 44, false, 24f, new View.OnClickListener() {
+        Button faster = makeFlatButton("+", 36, 44, false, 28f, new View.OnClickListener() {
             public void onClick(View v) { changeSpeed(25); }
         });
 
-        View spacer = new View(this);
+        speedPod.addView(slower, new LinearLayout.LayoutParams(-2, dp(44)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(-2, dp(44)));
+        speedPod.addView(faster, new LinearLayout.LayoutParams(-2, dp(44)));
 
-        Button back10 = makeFlatButton("−10", 38, 44, false, 15f, new View.OnClickListener() {
+        // Group 3: Transport Controls Pod (shaded rounded container)
+        LinearLayout transportPod = new LinearLayout(this);
+        transportPod.setOrientation(LinearLayout.HORIZONTAL);
+        transportPod.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable transportBg = new GradientDrawable();
+        transportBg.setColor(Color.parseColor("#f0f0f0"));
+        transportBg.setCornerRadius(dp(8f));
+        transportBg.setStroke(dp(1f), Color.parseColor("#e0e0e0"));
+        transportPod.setBackgroundDrawable(transportBg);
+        transportPod.setPadding(dp(2), 0, dp(2), 0);
+
+        Button back10 = makeFlatButton("−10", 40, 44, false, 15f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 10); }
         });
-        Button back1 = makeFlatButton("‹", 32, 44, false, 24f, new View.OnClickListener() {
+        Button back1 = makeFlatButton("‹", 38, 44, false, 32f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() - 1); }
         });
-        playButton = makeFlatButton("▶", 50, 50, true, 22f, new View.OnClickListener() {
+        playButton = makeFlatButton("▶", 54, 44, false, 28f, new View.OnClickListener() {
             public void onClick(View v) { toggle(); }
         });
-        Button fwd1 = makeFlatButton("›", 32, 44, false, 24f, new View.OnClickListener() {
+        Button fwd1 = makeFlatButton("›", 38, 44, false, 32f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 1); }
         });
-        Button fwd10 = makeFlatButton("+10", 38, 44, false, 15f, new View.OnClickListener() {
+        Button fwd10 = makeFlatButton("+10", 40, 44, false, 15f, new View.OnClickListener() {
             public void onClick(View v) { seek(clock.index() + 10); }
         });
 
-        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        btnParams.setMargins(dp(1), 0, dp(1), 0);
+        LinearLayout.LayoutParams tBtnParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        LinearLayout.LayoutParams playBtnParams = new LinearLayout.LayoutParams(0, dp(44), 1.25f);
 
-        LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(dp(50), dp(50));
-        playParams.setMargins(dp(4), 0, dp(4), 0);
+        transportPod.addView(back10, tBtnParams);
+        transportPod.addView(back1, tBtnParams);
+        transportPod.addView(playButton, playBtnParams);
+        transportPod.addView(fwd1, tBtnParams);
+        transportPod.addView(fwd10, tBtnParams);
 
-        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(52), dp(44));
-        speedParams.setMargins(dp(1), 0, dp(1), 0);
+        // Add to controls row with wide gaps between groups
+        controls.addView(markButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
-        controls.addView(markButton, new LinearLayout.LayoutParams(dp(40), dp(44)));
-        controls.addView(slower, btnParams);
-        controls.addView(speedView, speedParams);
-        controls.addView(faster, btnParams);
+        View spacer1 = new View(this);
+        controls.addView(spacer1, new LinearLayout.LayoutParams(dp(10), -1));
 
-        controls.addView(spacer, new LinearLayout.LayoutParams(dp(4), -1));
+        controls.addView(speedPod, new LinearLayout.LayoutParams(-2, dp(44)));
 
-        controls.addView(back10, btnParams);
-        controls.addView(back1, btnParams);
-        controls.addView(playButton, playParams);
-        controls.addView(fwd1, btnParams);
-        controls.addView(fwd10, btnParams);
+        View spacer2 = new View(this);
+        controls.addView(spacer2, new LinearLayout.LayoutParams(dp(12), -1));
+
+        controls.addView(transportPod, new LinearLayout.LayoutParams(0, dp(44), 1f));
 
         root.addView(controls);
 
@@ -591,7 +628,7 @@ public final class ReaderActivity extends Activity {
             wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, 0, 1f));
             return;
         }
-        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(110)));
+        wordView.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(96)));
         contextCard.setVisibility(View.VISIBLE);
 
         final int current = clock.index();
@@ -615,6 +652,11 @@ public final class ReaderActivity extends Activity {
                     // No indent, epigraph is right-aligned block
                 } else if (type == BookData.TYPE_AUTHOR) {
                     builder.append("— ");
+                } else if (type == BookData.TYPE_CHAPTER) {
+                    // Blank line before chapter title
+                    if (builder.length() > 0 && builder.charAt(builder.length() - 1) != '\n') {
+                        builder.append("\n");
+                    }
                 } else {
                     // Book paragraph first line indent (красная строка)
                     builder.append("\u00A0\u00A0\u00A0\u00A0");
@@ -645,11 +687,18 @@ public final class ReaderActivity extends Activity {
 
             if (book.paragraphEnds[i] || i == endIdx - 1) {
                 int pEndSpan = builder.length();
-                if (currentParagraphType == BookData.TYPE_EPIGRAPH || currentParagraphType == BookData.TYPE_AUTHOR) {
+                if (currentParagraphType == BookData.TYPE_CHAPTER) {
+                    builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new StyleSpan(Typeface.BOLD), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new RelativeSizeSpan(1.22f), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n\n");
+                } else if (currentParagraphType == BookData.TYPE_EPIGRAPH || currentParagraphType == BookData.TYPE_AUTHOR) {
                     builder.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_OPPOSITE), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new StyleSpan(Typeface.ITALIC), pStartSpan, pEndSpan, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.append("\n");
+                } else {
+                    builder.append("\n");
                 }
-                builder.append("\n");
                 isParagraphStart = true;
             } else {
                 builder.append(" ");
@@ -1101,6 +1150,7 @@ public final class ReaderActivity extends Activity {
 
         final SeekBar speed = settingBar(box, "Скорость: ", 58, (preferences.getInt("wpm", 300) - 50) / 25, 25, 50, " сл/мин");
         final SeekBar size = settingBar(box, "Размер шрифта слова: ", 24, (preferences.getInt("size", 46) - 24) / 2, 2, 24, " sp");
+        final SeekBar ctxSize = settingBar(box, "Размер текста контекста: ", 14, preferences.getInt("contextSize", 19) - 14, 1, 14, " sp");
         final SeekBar minimum = settingBar(box, "Минимум на слово: ", 20, preferences.getInt("minimum", 0) / 25, 25, 0, " мс (0 — выкл.)");
 
         final CheckBox smart = check(box, "Умные паузы (пунктуация и длина)", "smart", true);
@@ -1154,6 +1204,7 @@ public final class ReaderActivity extends Activity {
                     preferences.edit()
                         .putInt("wpm", 50 + speed.getProgress() * 25)
                         .putInt("size", 24 + size.getProgress() * 2)
+                        .putInt("contextSize", 14 + ctxSize.getProgress())
                         .putInt("minimum", minimum.getProgress() * 25)
                         .putBoolean("smart", smart.isChecked())
                         .putBoolean("orp", orp.isChecked())

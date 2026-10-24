@@ -59,6 +59,8 @@ public final class BookParser {
             .replaceAll("(?i)</(?:div|section|blockquote|epigraph)>", "\n\n[[/EPIGRAPH]]\n\n")
             .replaceAll("(?i)<(?:p|div|span|text-author)[^>]*class=[\"'][^\"']*(?:text-author|author)[^\"']*[\"'][^>]*>", "\n\n[[AUTHOR]]\n\n")
             .replaceAll("(?i)<text-author\\b[^>]*>", "\n\n[[AUTHOR]]\n\n")
+            .replaceAll("(?i)<h[1-4]\\b[^>]*>", "\n\n[[CHAPTER]]\n\n")
+            .replaceAll("(?i)</h[1-4]>", "\n\n[[/CHAPTER]]\n\n")
             .replaceAll("(?i)</?(p|div|h[1-6]|br|li|section|blockquote)\\b[^>]*>", "\n\n")
             .replaceAll("<[^>]*>", "").replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'"));
     }
@@ -66,7 +68,7 @@ public final class BookParser {
         final StringBuilder text = new StringBuilder();
         final StringBuilder title = new StringBuilder();
         final boolean fb2;
-        int bodyDepth, depth, skipDepth, titleDepth;
+        int bodyDepth, depth, skipDepth, titleDepth, sectionTitleDepth;
         TextHandler(boolean fb2) { this.fb2 = fb2; }
         private void paragraph() { if (text.length() > 0 && text.charAt(text.length() - 1) != '\n') text.append("\n\n"); }
         public void startElement(String uri, String local, String name, Attributes attrs) {
@@ -77,6 +79,8 @@ public final class BookParser {
             if (tag.equals("body")) bodyDepth = depth;
             if (tag.equals("epigraph")) { paragraph(); text.append("[[EPIGRAPH]]\n\n"); }
             else if (tag.equals("text-author")) { paragraph(); text.append("[[AUTHOR]]\n\n"); }
+            else if (fb2 && tag.equals("title") && bodyDepth > 0) { sectionTitleDepth = depth; paragraph(); text.append("[[CHAPTER]]\n\n"); }
+            else if (tag.matches("h[1-4]")) { paragraph(); text.append("[[CHAPTER]]\n\n"); }
             else if (tag.matches("p|v|div|h[1-6]|br|li|section|subtitle|blockquote")) paragraph();
         }
         public void endElement(String uri, String local, String name) {
@@ -85,6 +89,8 @@ public final class BookParser {
             else if (skipDepth == 0) {
                 if (tag.equals("epigraph")) { paragraph(); text.append("[[/EPIGRAPH]]\n\n"); }
                 else if (tag.equals("text-author")) { paragraph(); text.append("[[/AUTHOR]]\n\n"); }
+                else if (fb2 && tag.equals("title") && sectionTitleDepth == depth) { sectionTitleDepth = 0; paragraph(); text.append("[[/CHAPTER]]\n\n"); }
+                else if (tag.matches("h[1-4]")) { paragraph(); text.append("[[/CHAPTER]]\n\n"); }
                 else if (tag.matches("p|v|div|h[1-6]|li|section|subtitle|blockquote")) paragraph();
             }
             if (bodyDepth == depth) bodyDepth = 0;

@@ -9,6 +9,7 @@ public final class BookData {
     public static final byte TYPE_NORMAL = 0;
     public static final byte TYPE_EPIGRAPH = 1;
     public static final byte TYPE_AUTHOR = 2;
+    public static final byte TYPE_CHAPTER = 3;
 
     public final String[] words;
     public final float[] weights;
@@ -71,6 +72,8 @@ public final class BookData {
             if (rawWord.equals("[[/EPIGRAPH]]")) { currentType = TYPE_NORMAL; previousEnd = matcher.end(); continue; }
             if (rawWord.equals("[[AUTHOR]]")) { currentType = TYPE_AUTHOR; previousEnd = matcher.end(); continue; }
             if (rawWord.equals("[[/AUTHOR]]")) { currentType = TYPE_NORMAL; previousEnd = matcher.end(); continue; }
+            if (rawWord.equals("[[CHAPTER]]")) { currentType = TYPE_CHAPTER; previousEnd = matcher.end(); continue; }
+            if (rawWord.equals("[[/CHAPTER]]")) { currentType = TYPE_NORMAL; previousEnd = matcher.end(); continue; }
 
             int newlines = 0;
             for (int i = previousEnd; i < matcher.start(); i++) if (text.charAt(i) == '\n') newlines++;
@@ -105,12 +108,32 @@ public final class BookData {
         byte[] types = new byte[words.length];
         for (int i = 0; i < words.length && i < wordTypes.size; i++) types[i] = wordTypes.data[i];
 
-        // Post-pass: detect plain-text epigraph + author patterns
+        // Post-pass: detect chapter titles and plain-text epigraph + author patterns
         int pStart = 0;
         int paragraphIndex = 0;
+        ArrayList<Chapter> detectedChapters = new ArrayList<Chapter>();
         for (int i = 0; i < words.length; i++) {
             if (ends[i]) {
                 int pLen = i - pStart + 1;
+
+                // Chapter title heuristic:
+                // Matches patterns like:
+                // "2. Рэдрик Шухарт, 28 лет, женат, без определённых занятий"
+                // "Глава 1", "Часть 2", "Раздел III", "I. Введение"
+                if (pLen >= 1 && pLen <= 30 && types[pStart] == TYPE_NORMAL) {
+                    StringBuilder pBuf = new StringBuilder();
+                    for (int k = pStart; k <= i && k < words.length; k++) {
+                        pBuf.append(k == pStart ? "" : " ").append(words[k]);
+                    }
+                    String pText = pBuf.toString().trim();
+                    if (pText.matches("^(?:(?:\\d+|[IVXLCDM]+)\\.|(?:Глава|Часть|Раздел|Section|Chapter)\\b)[\\s\\S]*")) {
+                        for (int k = pStart; k <= i && k < words.length; k++) {
+                            types[k] = TYPE_CHAPTER;
+                        }
+                        detectedChapters.add(new Chapter(pText, pStart));
+                    }
+                }
+
                 // Never treat the first 2 paragraphs (author / book title / subtitle) as an epigraph
                 if (paragraphIndex >= 2 && pLen >= 3 && pLen <= 65 && i + 1 < words.length) {
                     int nextEnd = i + 1;
@@ -150,10 +173,24 @@ public final class BookData {
         }
 
         ArrayList<Chapter> chapters = new ArrayList<Chapter>();
-        if (characterChapters != null) for (Chapter chapter : characterChapters) {
-            int lo = 0, hi = offsets.size;
-            while (lo < hi) { int mid = (lo + hi) >>> 1; if (offsets.data[mid] < chapter.start) lo = mid + 1; else hi = mid; }
-            if (lo < words.length && (chapters.isEmpty() || chapters.get(chapters.size() - 1).start != lo)) chapters.add(new Chapter(chapter.title, lo));
+        if (characterChapters != null && !characterChapters.isEmpty()) {
+            for (Chapter chapter : characterChapters) {
+                int lo = 0, hi = offsets.size;
+                while (lo < hi) { int mid = (lo + hi) >>> 1; if (offsets.data[mid] < chapter.start) lo = mid + 1; else hi = mid; }
+                String chapterTitle = chapter.title;
+                // If chapter has generic title (like "Раздел 6"), check if we detected a real title nearby
+                for (Chapter detected : detectedChapters) {
+                    if (Math.abs(detected.start - lo) <= 15) {
+                        chapterTitle = detected.title;
+                        break;
+                    }
+                }
+                if (lo < words.length && (chapters.isEmpty() || chapters.get(chapters.size() - 1).start != lo)) {
+                    chapters.add(new Chapter(chapterTitle, lo));
+                }
+            }
+        } else if (!detectedChapters.isEmpty()) {
+            chapters.addAll(detectedChapters);
         }
         return new BookData(words, weights, ends, types, chapters.toArray(new Chapter[chapters.size()]));
     }
