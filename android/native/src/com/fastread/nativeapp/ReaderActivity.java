@@ -608,11 +608,24 @@ public final class ReaderActivity extends Activity {
 
         speedView = new TextView(this);
         speedView.setText("300\nсл/м");
-        speedView.setTextSize(12.5f);
+        speedView.setTextSize(12f);
         speedView.setGravity(Gravity.CENTER);
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(Color.BLACK);
-        speedView.setPadding(dp(4), 0, dp(4), 0);
+        speedView.setPadding(dp(6), 0, dp(6), 0);
+        speedView.setMinWidth(dp(56));
+        speedView.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                int target = preferences.getInt("wpm", 300);
+                int act = clock != null ? clock.actualWpm() : target;
+                int lat = clock != null ? clock.averageDrawLatencyMs() : 0;
+                boolean cal = preferences.getBoolean("calibrate", true);
+                toast("Задано: " + target + " сл/м\n" +
+                      "Факт: " + act + " сл/м\n" +
+                      "Задержка экрана: ~" + lat + " мс\n" +
+                      "Калибровка: " + (cal ? "Вкл" : "Выкл"));
+            }
+        });
 
         VectorButton faster = new VectorButton(this, density, VectorButton.TYPE_PLUS);
         faster.setOnClickListener(new View.OnClickListener() {
@@ -620,7 +633,7 @@ public final class ReaderActivity extends Activity {
         });
 
         speedPod.addView(slower, new LinearLayout.LayoutParams(dp(36), dp(42)));
-        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(54), dp(42)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(42)));
         speedPod.addView(faster, new LinearLayout.LayoutParams(dp(36), dp(42)));
 
         // Group 3: Transport Controls Pod (snug pod with crisp black border)
@@ -704,9 +717,13 @@ public final class ReaderActivity extends Activity {
         );
         int wpm = preferences.getInt("wpm", 300);
         if (clock != null) {
-            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
+            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
         }
-        speedView.setText(wpm + "\nсл/м");
+        if (clock != null && clock.playing() && clock.completed >= 3) {
+            speedView.setText(wpm + "\nфакт: " + clock.actualWpm());
+        } else {
+            speedView.setText(wpm + "\nсл/м");
+        }
     }
 
     private void loadDemo() {
@@ -761,7 +778,11 @@ public final class ReaderActivity extends Activity {
         boolean isMarked = record != null && record.bookmarks != null && record.bookmarks.contains(index);
         markButton.setBookmarked(isMarked);
 
-        speedView.setText(wpm + "\nсл/м");
+        if (clock != null && clock.playing() && clock.completed >= 3) {
+            speedView.setText(wpm + "\nфакт: " + clock.actualWpm());
+        } else {
+            speedView.setText(wpm + "\nсл/м");
+        }
     }
 
     public static class BoxWordSpan extends ReplacementSpan {
@@ -1018,7 +1039,7 @@ public final class ReaderActivity extends Activity {
     private void changeSpeed(int delta) {
         int wpm = Math.max(50, Math.min(1500, preferences.getInt("wpm", 300) + delta));
         preferences.edit().putInt("wpm", wpm).apply();
-        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
+        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
         refreshUi();
     }
 
@@ -1425,6 +1446,7 @@ public final class ReaderActivity extends Activity {
         final SeekBar minimum = settingBar(box, "Минимум на слово: ", 20, preferences.getInt("minimum", 0) / 25, 25, 0, " мс (0 — выкл.)");
 
         final CheckBox smart = check(box, "Умные паузы (пунктуация и длина)", "smart", true);
+        final CheckBox calibrate = check(box, "Автокалибровка темпа (компенсация задержки E-Ink)", "calibrate", true);
         final CheckBox orp = check(box, "Опорная буква чуть левее центра (ORP)", "orp", false);
         final CheckBox context = check(box, "Окно контекста книги на паузе", "context", true);
         final CheckBox dark = check(box, "Инверсия (тёмная тема)", "dark", false);
@@ -1457,8 +1479,13 @@ public final class ReaderActivity extends Activity {
             box.addView(refresh);
         }
 
+        int act = clock != null ? clock.actualWpm() : preferences.getInt("wpm", 300);
+        int lat = clock != null ? clock.averageDrawLatencyMs() : 0;
         TextView info = new TextView(this);
-        info.setText("\n" + screen.description() + "\nУстройство: " + Build.MODEL + " (" + Build.DISPLAY + ")");
+        info.setText("\n" + screen.description() +
+                     "\nЗадержка отрисовки экрана: ~" + lat + " мс" +
+                     "\nФактическая скорость при чтении: " + act + " сл/м" +
+                     "\nУстройство: " + Build.MODEL + " (" + Build.DISPLAY + ")");
         info.setTextSize(11.5f);
         info.setTextColor(Color.DKGRAY);
         box.addView(info);
@@ -1478,6 +1505,7 @@ public final class ReaderActivity extends Activity {
                         .putInt("contextSize", 14 + ctxSize.getProgress())
                         .putInt("minimum", minimum.getProgress() * 25)
                         .putBoolean("smart", smart.isChecked())
+                        .putBoolean("calibrate", calibrate.isChecked())
                         .putBoolean("orp", orp.isChecked())
                         .putBoolean("context", context.isChecked())
                         .putBoolean("dark", dark.isChecked())

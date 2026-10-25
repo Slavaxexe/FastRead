@@ -8,12 +8,25 @@ public final class PlaybackClock {
     private final Display display;
     private BookData book;
     private int index, wpm = 250, minimumMs;
-    private boolean playing, awaitingDraw, smart = true;
+    private boolean playing, awaitingDraw, smart = true, compensate = false;
     private long frameId, requestedAt, startedAt, lastCompletedAt;
     public long completed, elapsedMs, maxDrawWaitMs;
+    private long totalDrawWaitMs, drawCount;
+    private final long[] recentTimes = new long[16];
+    private int recentIndex, recentCount;
+
     private final Runnable advance = new Runnable() { @Override public void run() {
         if (!playing || awaitingDraw) return;
-        long now = scheduler.now(); completed++; elapsedMs += now - lastCompletedAt; lastCompletedAt = now;
+        long now = scheduler.now();
+        completed++;
+        long wordElapsed = Math.max(1, now - lastCompletedAt);
+        elapsedMs += wordElapsed;
+        lastCompletedAt = now;
+
+        recentTimes[recentIndex % 16] = wordElapsed;
+        recentIndex++;
+        if (recentCount < 16) recentCount++;
+
         if (index + 1 >= book.words.length) { stop(true, false); return; }
         index++; requestDraw();
     }};
@@ -23,13 +36,24 @@ public final class PlaybackClock {
     public int index() { return index; }
     public boolean playing() { return playing; }
     public void configure(int wpm, boolean smart, int minimumMs) {
-        this.wpm = Math.max(50, Math.min(1500, wpm)); this.smart = smart; this.minimumMs = Math.max(0, Math.min(500, minimumMs));
+        configure(wpm, smart, minimumMs, this.compensate);
+    }
+    public void configure(int wpm, boolean smart, int minimumMs, boolean compensate) {
+        this.wpm = Math.max(50, Math.min(1500, wpm));
+        this.smart = smart;
+        this.minimumMs = Math.max(0, Math.min(500, minimumMs));
+        this.compensate = compensate;
+        recentCount = 0; recentIndex = 0;
         if (playing) { scheduler.cancel(advance); scheduler.cancel(watchdog); requestDraw(); }
     }
+    public void setCompensate(boolean compensate) { this.compensate = compensate; }
+    public boolean isCompensating() { return compensate; }
     public void play() {
         if (playing || book == null || book.words.length == 0) return;
         if (index >= book.words.length - 1) index = 0;
         playing = true; completed = 0; elapsedMs = 0; maxDrawWaitMs = 0;
+        totalDrawWaitMs = 0; drawCount = 0;
+        recentCount = 0; recentIndex = 0;
         startedAt = lastCompletedAt = scheduler.now(); requestDraw();
     }
     public void pause() { stop(false, false); }
@@ -51,9 +75,37 @@ public final class PlaybackClock {
     public void onDrawn(long id) {
         if (!playing || !awaitingDraw || id != frameId) return;
         awaitingDraw = false; scheduler.cancel(watchdog);
-        maxDrawWaitMs = Math.max(maxDrawWaitMs, scheduler.now() - requestedAt);
-        long duration = Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1)));
-        scheduler.post(advance, Math.max(40, duration));
+        long now = scheduler.now();
+        long drawWait = Math.max(0, now - requestedAt);
+        maxDrawWaitMs = Math.max(maxDrawWaitMs, drawWait);
+        totalDrawWaitMs += drawWait;
+        drawCount++;
+
+        long targetDuration = Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1)));
+        long delay;
+        if (compensate && drawWait > 0) {
+            long minHold = Math.max(minimumMs, 40);
+            delay = Math.max(minHold, targetDuration - drawWait);
+        } else {
+            delay = Math.max(40, targetDuration);
+        }
+        scheduler.post(advance, delay);
     }
     public long currentDurationMs() { return book == null || book.words.length == 0 ? 0 : Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1))); }
+
+    public int actualWpm() {
+        if (recentCount >= 3) {
+            long sum = 0;
+            for (int i = 0; i < recentCount; i++) sum += recentTimes[i];
+            if (sum > 0) return (int) Math.round((recentCount * 60000.0) / sum);
+        }
+        if (elapsedMs >= 500 && completed >= 2) {
+            return (int) Math.round((completed * 60000.0) / elapsedMs);
+        }
+        return wpm;
+    }
+
+    public int averageDrawLatencyMs() {
+        return drawCount > 0 ? (int) Math.round((double) totalDrawWaitMs / drawCount) : 0;
+    }
 }
