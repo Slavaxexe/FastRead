@@ -312,11 +312,9 @@ public final class ReaderActivity extends Activity {
                 int target = preferences.getInt("wpm", 300);
                 int act = clock != null ? clock.actualWpm() : target;
                 int lat = clock != null ? clock.averageDrawLatencyMs() : 0;
-                boolean cal = preferences.getBoolean("calibrate", true);
                 toast("Задано: " + target + " сл/м\n" +
                       "Факт: " + act + " сл/м\n" +
-                      "Задержка экрана: ~" + lat + " мс\n" +
-                      "Калибровка: " + (cal ? "Вкл" : "Выкл"));
+                      "Задержка экрана: ~" + lat + " мс");
             }
         });
 
@@ -501,7 +499,7 @@ public final class ReaderActivity extends Activity {
 
         int wpm = preferences.getInt("wpm", 300);
         if (clock != null) {
-            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
+            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
         }
         speedView.setText(wpm + "\nсл/м");
         speedView.setTextColor(themeText);
@@ -883,7 +881,7 @@ public final class ReaderActivity extends Activity {
     private void changeSpeed(int delta) {
         int wpm = Math.max(50, Math.min(1500, preferences.getInt("wpm", 300) + delta));
         preferences.edit().putInt("wpm", wpm).apply();
-        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
+        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
         refreshUi();
     }
 
@@ -1161,11 +1159,7 @@ public final class ReaderActivity extends Activity {
         smartCheck.setPadding(0, dp(8), 0, 0);
         layout.addView(smartCheck);
 
-        final CheckBox calCheck = new CheckBox(this);
-        calCheck.setText("Автокалибровка темпа (компенсация задержки экрана)");
-        calCheck.setChecked(preferences.getBoolean("calibrate", true));
-        calCheck.setPadding(0, dp(8), 0, 0);
-        layout.addView(calCheck);
+
 
         // 5. Context Card on Pause
         final CheckBox ctxCheck = new CheckBox(this);
@@ -1186,7 +1180,7 @@ public final class ReaderActivity extends Activity {
                         .putInt("size", sizeBar.getProgress() + 30)
                         .putInt("contextSize", ctxBar.getProgress() + 14)
                         .putBoolean("smart", smartCheck.isChecked())
-                        .putBoolean("calibrate", calCheck.isChecked())
+
                         .putBoolean("context", ctxCheck.isChecked())
                         .apply();
 

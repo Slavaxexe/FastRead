@@ -8,7 +8,7 @@ public final class PlaybackClock {
     private final Display display;
     private BookData book;
     private int index, wpm = 250, minimumMs;
-    private boolean playing, awaitingDraw, smart = true, compensate = false;
+    private boolean playing, awaitingDraw, smart = true;
     private long frameId, requestedAt, startedAt, lastCompletedAt;
     public long completed, elapsedMs, maxDrawWaitMs;
     private long totalDrawWaitMs, drawCount;
@@ -36,18 +36,12 @@ public final class PlaybackClock {
     public int index() { return index; }
     public boolean playing() { return playing; }
     public void configure(int wpm, boolean smart, int minimumMs) {
-        configure(wpm, smart, minimumMs, this.compensate);
-    }
-    public void configure(int wpm, boolean smart, int minimumMs, boolean compensate) {
         this.wpm = Math.max(50, Math.min(1500, wpm));
         this.smart = smart;
         this.minimumMs = Math.max(0, Math.min(500, minimumMs));
-        this.compensate = compensate;
         recentCount = 0; recentIndex = 0;
         if (playing) { scheduler.cancel(advance); scheduler.cancel(watchdog); requestDraw(); }
     }
-    public void setCompensate(boolean compensate) { this.compensate = compensate; }
-    public boolean isCompensating() { return compensate; }
     public void play() {
         if (playing || book == null || book.words.length == 0) return;
         if (index >= book.words.length - 1) index = 0;
@@ -81,15 +75,9 @@ public final class PlaybackClock {
         totalDrawWaitMs += drawWait;
         drawCount++;
 
-        long targetDuration = Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1)));
-        long delay;
-        if (compensate && drawWait > 0) {
-            long minHold = Math.max(minimumMs, 40);
-            delay = Math.max(minHold, targetDuration - drawWait);
-        } else {
-            delay = Math.max(40, targetDuration);
-        }
-        scheduler.post(advance, delay);
+        // Guaranteed full screen dwell after confirmed draw: no words skipped
+        long duration = Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1)));
+        scheduler.post(advance, Math.max(40, duration));
     }
     public long currentDurationMs() { return book == null || book.words.length == 0 ? 0 : Math.max(minimumMs, Math.round(60000.0 / wpm * (smart ? book.weights[index] : 1))); }
 
