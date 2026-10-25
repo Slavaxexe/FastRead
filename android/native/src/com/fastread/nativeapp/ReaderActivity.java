@@ -619,11 +619,9 @@ public final class ReaderActivity extends Activity {
                 int target = preferences.getInt("wpm", 300);
                 int act = clock != null ? clock.actualWpm() : target;
                 int lat = clock != null ? clock.averageDrawLatencyMs() : 0;
-                boolean cal = preferences.getBoolean("calibrate", true);
                 toast("Задано: " + target + " сл/м\n" +
                       "Факт: " + act + " сл/м\n" +
-                      "Задержка экрана: ~" + lat + " мс\n" +
-                      "Калибровка: " + (cal ? "Вкл" : "Выкл"));
+                      "Задержка экрана: ~" + lat + " мс");
             }
         });
 
@@ -717,7 +715,7 @@ public final class ReaderActivity extends Activity {
         );
         int wpm = preferences.getInt("wpm", 300);
         if (clock != null) {
-            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
+            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
         }
         if (clock != null && clock.playing() && clock.completed >= 3) {
             speedView.setText(wpm + "\nфакт: " + clock.actualWpm());
@@ -1039,7 +1037,7 @@ public final class ReaderActivity extends Activity {
     private void changeSpeed(int delta) {
         int wpm = Math.max(50, Math.min(1500, preferences.getInt("wpm", 300) + delta));
         preferences.edit().putInt("wpm", wpm).apply();
-        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
+        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
         refreshUi();
     }
 
@@ -1446,7 +1444,6 @@ public final class ReaderActivity extends Activity {
         final SeekBar minimum = settingBar(box, "Минимум на слово: ", 20, preferences.getInt("minimum", 0) / 25, 25, 0, " мс (0 — выкл.)");
 
         final CheckBox smart = check(box, "Умные паузы (пунктуация и длина)", "smart", true);
-        final CheckBox calibrate = check(box, "Автокалибровка темпа (компенсация задержки E-Ink)", "calibrate", true);
         final CheckBox orp = check(box, "Опорная буква чуть левее центра (ORP)", "orp", false);
         final CheckBox context = check(box, "Окно контекста книги на паузе", "context", true);
         final CheckBox dark = check(box, "Инверсия (тёмная тема)", "dark", false);
@@ -1505,7 +1502,6 @@ public final class ReaderActivity extends Activity {
                         .putInt("contextSize", 14 + ctxSize.getProgress())
                         .putInt("minimum", minimum.getProgress() * 25)
                         .putBoolean("smart", smart.isChecked())
-                        .putBoolean("calibrate", calibrate.isChecked())
                         .putBoolean("orp", orp.isChecked())
                         .putBoolean("context", context.isChecked())
                         .putBoolean("dark", dark.isChecked())
