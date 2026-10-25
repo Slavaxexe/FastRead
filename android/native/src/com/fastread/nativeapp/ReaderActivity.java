@@ -306,6 +306,19 @@ public final class ReaderActivity extends Activity {
         speedView.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
         speedView.setTextColor(themeText);
         speedView.setPadding(dp(4), 0, dp(4), 0);
+        speedView.setMinWidth(dp(62));
+        speedView.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                int target = preferences.getInt("wpm", 300);
+                int act = clock != null ? clock.actualWpm() : target;
+                int lat = clock != null ? clock.averageDrawLatencyMs() : 0;
+                boolean cal = preferences.getBoolean("calibrate", true);
+                toast("Задано: " + target + " сл/м\n" +
+                      "Факт: " + act + " сл/м\n" +
+                      "Задержка экрана: ~" + lat + " мс\n" +
+                      "Калибровка: " + (cal ? "Вкл" : "Выкл"));
+            }
+        });
 
         fasterBtn = new VectorButton(this, density, VectorButton.TYPE_PLUS);
         fasterBtn.setOnClickListener(new View.OnClickListener() {
@@ -313,7 +326,7 @@ public final class ReaderActivity extends Activity {
         });
 
         speedPod.addView(slowerBtn, new LinearLayout.LayoutParams(dp(36), dp(38)));
-        speedPod.addView(speedView, new LinearLayout.LayoutParams(dp(62), dp(38)));
+        speedPod.addView(speedView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(38)));
         speedPod.addView(fasterBtn, new LinearLayout.LayoutParams(dp(36), dp(38)));
         speedRow.addView(speedPod, new LinearLayout.LayoutParams(-2, -2));
 
@@ -488,7 +501,7 @@ public final class ReaderActivity extends Activity {
 
         int wpm = preferences.getInt("wpm", 300);
         if (clock != null) {
-            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
+            clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
         }
         speedView.setText(wpm + "\nсл/м");
         speedView.setTextColor(themeText);
@@ -597,7 +610,11 @@ public final class ReaderActivity extends Activity {
         boolean isMarked = record.bookmarks.contains(index);
         markButton.setBookmarkState(isMarked, themeAccent, themeText);
 
-        speedView.setText(wpm + "\nсл/м");
+        if (clock != null && clock.playing() && clock.completed >= 3) {
+            speedView.setText(wpm + "\nфакт: " + clock.actualWpm());
+        } else {
+            speedView.setText(wpm + "\nсл/м");
+        }
     }
 
     public static class BoxWordSpan extends ReplacementSpan {
@@ -866,7 +883,7 @@ public final class ReaderActivity extends Activity {
     private void changeSpeed(int delta) {
         int wpm = Math.max(50, Math.min(1500, preferences.getInt("wpm", 300) + delta));
         preferences.edit().putInt("wpm", wpm).apply();
-        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0));
+        clock.configure(wpm, preferences.getBoolean("smart", true), preferences.getInt("minimum", 0), preferences.getBoolean("calibrate", true));
         refreshUi();
     }
 
@@ -1144,6 +1161,12 @@ public final class ReaderActivity extends Activity {
         smartCheck.setPadding(0, dp(8), 0, 0);
         layout.addView(smartCheck);
 
+        final CheckBox calCheck = new CheckBox(this);
+        calCheck.setText("Автокалибровка темпа (компенсация задержки экрана)");
+        calCheck.setChecked(preferences.getBoolean("calibrate", true));
+        calCheck.setPadding(0, dp(8), 0, 0);
+        layout.addView(calCheck);
+
         // 5. Context Card on Pause
         final CheckBox ctxCheck = new CheckBox(this);
         ctxCheck.setText("Показывать абзац текста на паузе");
@@ -1163,6 +1186,7 @@ public final class ReaderActivity extends Activity {
                         .putInt("size", sizeBar.getProgress() + 30)
                         .putInt("contextSize", ctxBar.getProgress() + 14)
                         .putBoolean("smart", smartCheck.isChecked())
+                        .putBoolean("calibrate", calCheck.isChecked())
                         .putBoolean("context", ctxCheck.isChecked())
                         .apply();
 

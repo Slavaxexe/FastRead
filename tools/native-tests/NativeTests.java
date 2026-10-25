@@ -60,6 +60,13 @@ public class NativeTests {
         clock.seek(0); clock.configure(600, false, 150); clock.play(); clock.onDrawn(display.id);
         time.advance(149); check(clock.index() == 0, "minimum screen hold"); time.advance(1); check(clock.index() == 1, "minimum completes"); clock.pause();
         clock.seek(0); clock.configure(600, false, 0); clock.play(); clock.onDrawn(display.id); time.advance(100); check(clock.index() == 1, "600 WPM becomes 100ms"); clock.pause();
+        clock.seek(0); clock.configure(300, false, 0, true); clock.play();
+        time.advance(40);
+        clock.onDrawn(display.id);
+        check(clock.averageDrawLatencyMs() == 40, "draw latency tracked");
+        time.advance(159); check(clock.index() == 0, "compensated 160ms dwell");
+        time.advance(1); check(clock.index() == 1, "compensated advance at 200ms total period");
+        clock.pause();
         System.out.println("PASS native: stale callbacks, seek, pause, draw timeout, speed changes and optional minimum dwell");
 
         File dir = new File(args[0]); dir.mkdirs();
